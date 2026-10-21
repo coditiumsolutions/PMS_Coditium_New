@@ -429,9 +429,11 @@ namespace PMS.Controllers
             ViewBag.ProjectDisplayName = !string.IsNullOrWhiteSpace(siteConfig?.ProjectName)
                 ? siteConfig.ProjectName
                 : "Property Management System";
-            // Same logo source as Account Statement report (logo-main.jpeg)
-            ViewBag.LogoDataUrl = await ResolveAccountStatementLogoDataUrlAsync();
-            ViewBag.LogoPath = "~/images/logo-main.jpeg";
+            // Prefer embedded data URL so print/PDF works even if static files are missing.
+            ViewBag.LogoDataUrl = await ResolveAccountStatementLogoDataUrlAsync(siteConfig?.LogoPath);
+            ViewBag.LogoPath = !string.IsNullOrWhiteSpace(siteConfig?.LogoPath)
+                ? siteConfig.LogoPath
+                : "~/images/logo-main.jpeg";
 
             var printedByUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             string? printedByName = null;
@@ -456,20 +458,47 @@ namespace PMS.Controllers
         }
 
         /// <summary>Same logo resolution order as <c>AccountStatementReportService.LoadAccountStatementLogoAsync</c>.</summary>
-        private async Task<string?> ResolveAccountStatementLogoDataUrlAsync()
+        private async Task<string?> ResolveAccountStatementLogoDataUrlAsync(string? siteLogoPath = null)
         {
-            var candidates = new[]
-            {
-                Path.Combine(_env.ContentRootPath, "images", "logo-main.jpeg"),
-                Path.Combine(_env.WebRootPath ?? string.Empty, "images", "logo-main.jpeg"),
-                Path.Combine(_env.ContentRootPath, "wwwroot", "images", "logo-main.jpeg")
-            };
+            var webRoot = _env.WebRootPath ?? string.Empty;
+            var contentRoot = _env.ContentRootPath ?? string.Empty;
+            var baseDir = AppContext.BaseDirectory ?? string.Empty;
 
-            foreach (var path in candidates.Where(p => !string.IsNullOrWhiteSpace(p) && System.IO.File.Exists(p)))
+            var candidates = new List<string>();
+            void AddCandidate(string? path)
             {
+                if (!string.IsNullOrWhiteSpace(path))
+                    candidates.Add(path);
+            }
+
+            // Site branding first (uploaded logo), then account-statement logo, then common fallbacks.
+            if (!string.IsNullOrWhiteSpace(siteLogoPath))
+            {
+                var relative = siteLogoPath.Replace("~/", string.Empty).TrimStart('/', '\\')
+                    .Replace('/', Path.DirectorySeparatorChar);
+                AddCandidate(Path.Combine(webRoot, relative));
+                AddCandidate(Path.Combine(contentRoot, "wwwroot", relative));
+            }
+
+            AddCandidate(Path.Combine(contentRoot, "images", "logo-main.jpeg"));
+            AddCandidate(Path.Combine(baseDir, "images", "logo-main.jpeg"));
+            AddCandidate(Path.Combine(webRoot, "images", "logo-main.jpeg"));
+            AddCandidate(Path.Combine(contentRoot, "wwwroot", "images", "logo-main.jpeg"));
+            AddCandidate(Path.Combine(webRoot, "images", "logohome.png"));
+            AddCandidate(Path.Combine(webRoot, "images", "logo.jpeg"));
+            AddCandidate(Path.Combine(webRoot, "images", "logohome.jpg"));
+
+            foreach (var path in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                if (!System.IO.File.Exists(path))
+                    continue;
                 var bytes = await System.IO.File.ReadAllBytesAsync(path);
-                if (bytes.Length == 0) continue;
-                return "data:image/jpeg;base64," + Convert.ToBase64String(bytes);
+                if (bytes.Length == 0)
+                    continue;
+                var mime = path.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? "image/png"
+                    : path.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) ? "image/jpeg"
+                    : "application/octet-stream";
+                return $"data:{mime};base64," + Convert.ToBase64String(bytes);
             }
 
             return null;

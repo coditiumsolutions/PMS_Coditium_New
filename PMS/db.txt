@@ -1,7 +1,7 @@
-# Version: 1.5 | UpdatedAt: 30/09/2026
+# Version: 1.6 | UpdatedAt: 21/10/2026
 -- Live schema snapshot (auto-refreshed from current SQL Server)
--- Generated from database: DBZaura (SQL Server on the zaura.coditium.com VM, reached via 127.0.0.1,1433)
--- Updated: 2026-09-30
+-- Generated from database: DBPMSCoditium (copied from DBZaura)
+-- Updated: 2026-10-21
 --
 -- Format:
 -- TABLE <TableName>
