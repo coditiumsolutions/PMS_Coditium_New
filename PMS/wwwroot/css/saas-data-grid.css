@@ -392,6 +392,15 @@
     margin-bottom: 1.5rem;
 }
 
+/* Customer listing page heading */
+.pms-customer-listing .pms-customer-page-heading {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #2563eb;
+    letter-spacing: 0.02em;
+    line-height: 1.25;
+}
+
 /* ─── Listing grids: 20 rows visible, no horizontal scroll ─── */
 
 .pms-listing-page .table-responsive,

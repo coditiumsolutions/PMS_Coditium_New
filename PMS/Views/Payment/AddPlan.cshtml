@@ -137,18 +137,21 @@
                                 <div class="col-12 col-lg-4">
                                     <select asp-for="Frequency" class="form-select form-select-sm" required>
                                         <option value="">Select Frequency</option>
-                                        <option value="Monthly">Monthly</option>
-                                        <option value="Quarterly">Quarterly</option>
-                                        <option value="Half Yearly">Half Yearly</option>
-                                        <option value="Yearly">Yearly</option>
+                                        @if (Model.FrequencyOptions != null)
+                                        {
+                                            @foreach (var freq in Model.FrequencyOptions)
+                                            {
+                                                <option value="@freq">@freq</option>
+                                            }
+                                        }
                                     </select>
                                     <span asp-validation-for="Frequency" class="text-danger"></span>
                                 </div>
-                                <div class="col-12 col-lg-2">
+                                <div class="col-12 col-lg-2 pms-addplan-recurring-only">
                                     <label asp-for="FirstDueDate" class="form-label pms-registration-4col-label">First Due Date *</label>
                                 </div>
-                                <div class="col-12 col-lg-4">
-                                    <input asp-for="FirstDueDate" class="form-control form-control-sm" type="date" required />
+                                <div class="col-12 col-lg-4 pms-addplan-recurring-only">
+                                    <input asp-for="FirstDueDate" class="form-control form-control-sm" type="date" />
                                     <span asp-validation-for="FirstDueDate" class="text-danger"></span>
                                 </div>
                             </div>
@@ -170,19 +173,19 @@
                                 </div>
                             </div>
 
-                            <div class="row g-0 g-lg-1 pms-registration-4col-row align-items-center">
+                            <div class="row g-0 g-lg-1 pms-registration-4col-row align-items-center pms-addplan-recurring-only">
                                 <div class="col-12 col-lg-2">
                                     <label asp-for="StartRange" class="form-label pms-registration-4col-label">Start Range *</label>
                                 </div>
                                 <div class="col-12 col-lg-4">
-                                    <input asp-for="StartRange" type="number" min="0" class="form-control form-control-sm" required placeholder="e.g., 6" />
+                                    <input asp-for="StartRange" type="number" min="0" class="form-control form-control-sm" placeholder="e.g., 6" />
                                     <span asp-validation-for="StartRange" class="text-danger"></span>
                                 </div>
                                 <div class="col-12 col-lg-2">
                                     <label asp-for="EndRange" class="form-label pms-registration-4col-label">End Range *</label>
                                 </div>
                                 <div class="col-12 col-lg-4">
-                                    <input asp-for="EndRange" type="number" min="0" class="form-control form-control-sm" required placeholder="e.g., 10" />
+                                    <input asp-for="EndRange" type="number" min="0" class="form-control form-control-sm" placeholder="e.g., 10" />
                                     <span asp-validation-for="EndRange" class="text-danger"></span>
                                 </div>
                             </div>
@@ -218,10 +221,14 @@
                                 <div class="col-12 col-lg-4"></div>
                             </div>
 
-                            <div class="alert alert-light border py-1 px-2 mb-0 mt-1 small">
+                            <div class="alert alert-light border py-1 px-2 mb-0 mt-1 small pms-addplan-help-recurring">
                                 Creates installments from <strong>Start Range</strong> to <strong>End Range</strong>
                                 (e.g. 6→10 = InstallmentNo 6,7,8,9,10) with the same Payment Title and Amount.
-                                Due dates start at <strong>Due Date</strong>, then add 1 month (Monthly) or 3 months (Quarterly) per installment.
+                                Due dates start at <strong>Due Date</strong>, then add months based on Frequency per installment.
+                            </div>
+                            <div class="alert alert-light border py-1 px-2 mb-0 mt-1 small pms-addplan-help-onetime d-none">
+                                <strong>One Time:</strong> enter <strong>Payment Title</strong>, <strong>Due Date</strong>, and <strong>Amount</strong>
+                                to add a single payment schedule row for this plan.
                             </div>
                         </div>
                     }
@@ -241,13 +248,19 @@
 
     @if (planSaved)
     {
+        var scheduleAllocatedTotal = Model.Schedules?.Sum(s => s.Amount) ?? 0m;
+        var unallocatedTotal = Model.TotalAmount - scheduleAllocatedTotal;
+
         <div class="card border-0 shadow-sm pms-mp-header mb-3" id="planSchedulesSection">
             <div class="card-header py-2 pms-mp-header-bar d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h6 class="mb-0">
                     <i class="fas fa-list-ol me-2"></i>Payment Schedules
                     <span class="text-muted fw-normal small ms-1">(PaymentSchedule for PlanID @Model.PlanID)</span>
                 </h6>
-                <span class="badge text-bg-secondary">@(Model.Schedules?.Count ?? 0) record(s)</span>
+                <span class="pms-addplan-unallocated"
+                      title="Plan Total (@Model.TotalAmount.ToString("N2")) − Schedule Sum (@scheduleAllocatedTotal.ToString("N2"))">
+                    Unallocated Total: @unallocatedTotal.ToString("N2")
+                </span>
             </div>
             <div class="card-body py-2 px-3">
                 @if (Model.Schedules == null || Model.Schedules.Count == 0)
@@ -325,6 +338,13 @@
     .pms-create-payment-plan .pms-mp-header-bar h6 {
         color: #000 !important;
         font-weight: 600;
+    }
+
+    .pms-create-payment-plan .pms-addplan-unallocated {
+        color: #000 !important;
+        font-size: 0.95rem;
+        font-weight: 600;
+        white-space: nowrap;
     }
 
     .pms-create-payment-plan .pms-addplan-schedule-toggle {
@@ -558,6 +578,29 @@
             $('#SurchargePolicyStatus').on('change', function () {
                 $('#SurchargeRate').prop('disabled', !$(this).is(':checked'));
             }).trigger('change');
+
+            function isOneTimeFrequency() {
+                return String($('#Frequency').val() || '').trim().toLowerCase() === 'one time';
+            }
+
+            function syncOneTimeFrequencyUi() {
+                var oneTime = isOneTimeFrequency();
+                $('.pms-addplan-recurring-only').toggleClass('d-none', oneTime);
+                $('.pms-addplan-help-recurring').toggleClass('d-none', oneTime);
+                $('.pms-addplan-help-onetime').toggleClass('d-none', !oneTime);
+
+                $('#FirstDueDate, #StartRange, #EndRange').prop('required', !oneTime);
+                if (oneTime) {
+                    $('#StartRange').val(1);
+                    $('#EndRange').val(1);
+                    if (!$('#DueDate').val() && $('#FirstDueDate').val()) {
+                        $('#DueDate').val($('#FirstDueDate').val());
+                    }
+                }
+            }
+
+            $('#Frequency').on('change', syncOneTimeFrequencyUi);
+            syncOneTimeFrequencyUi();
         });
     </script>
 }

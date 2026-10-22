@@ -1,7 +1,7 @@
 @model IEnumerable<PMS.Models.Customer>
 
 @{
-    ViewData["Title"] = ViewBag.IsPendingCustomers == true ? "Pending" : "Search Customers";
+    ViewData["Title"] = ViewBag.IsPendingCustomers == true ? "Pending" : "CUSTOMERS INFORMATION";
     ViewData["ListingAddUrl"] = ViewBag.CanCreate == true ? Url.Action("Create") : null;
     ViewData["ListingShowAdd"] = false;
     ViewData["ListingHideRefresh"] = true;
@@ -13,7 +13,7 @@
     ViewData["IsPendingCustomers"] = isPendingCustomers;
     var customerCount = Model?.Count() ?? 0;
     var listAction = isPendingCustomers ? "PendingCustomers" : "Index";
-    var pageHeading = isPendingCustomers ? "Pending" : "Customers";
+    var pageHeading = isPendingCustomers ? "Pending" : "CUSTOMERS INFORMATION";
 }
 
 @if (TempData["SuccessMessage"] != null)

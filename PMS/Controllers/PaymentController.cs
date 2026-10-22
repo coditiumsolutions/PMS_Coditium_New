@@ -1475,7 +1475,9 @@ namespace PMS.Controllers
 
             if (string.IsNullOrWhiteSpace(planId))
             {
-                return View(new AddPlanViewModel());
+                var emptyModel = new AddPlanViewModel();
+                await PopulateAddPlanFrequencyOptionsAsync(emptyModel);
+                return View(emptyModel);
             }
 
             var plan = await _context.PaymentPlans.AsNoTracking()
@@ -1492,7 +1494,7 @@ namespace PMS.Controllers
                 .ThenBy(s => s.InstallmentNo)
                 .ToListAsync();
 
-            return View(new AddPlanViewModel
+            var model = new AddPlanViewModel
             {
                 PlanID = plan.PlanID,
                 PlanName = plan.PlanName ?? string.Empty,
@@ -1504,7 +1506,9 @@ namespace PMS.Controllers
                 FirstDueDate = schedules.FirstOrDefault()?.DueDate.Date ?? DateTime.Today,
                 DueDate = schedules.FirstOrDefault()?.DueDate.Date ?? DateTime.Today,
                 Schedules = schedules
-            });
+            };
+            await PopulateAddPlanFrequencyOptionsAsync(model);
+            return View(model);
         }
 
         [HttpPost]
@@ -1530,6 +1534,7 @@ namespace PMS.Controllers
 
             if (!ModelState.IsValid)
             {
+                await PopulateAddPlanFrequencyOptionsAsync(model);
                 return View(model);
             }
 
@@ -1563,6 +1568,7 @@ namespace PMS.Controllers
             {
                 var detail = ex.InnerException?.Message ?? ex.Message;
                 ModelState.AddModelError(string.Empty, "Could not save plan: " + detail);
+                await PopulateAddPlanFrequencyOptionsAsync(model);
                 return View(model);
             }
         }
@@ -1587,6 +1593,8 @@ namespace PMS.Controllers
                 return RedirectToAction(nameof(AddPlan));
             }
 
+            var isOneTime = string.Equals(model.Frequency?.Trim(), "One Time", StringComparison.OrdinalIgnoreCase);
+
             if (string.IsNullOrWhiteSpace(model.PaymentTitle))
             {
                 ModelState.AddModelError(nameof(model.PaymentTitle), "Payment Title is required.");
@@ -1597,33 +1605,46 @@ namespace PMS.Controllers
                 ModelState.AddModelError(nameof(model.Frequency), "Frequency is required.");
             }
 
-            if (!model.FirstDueDate.HasValue)
-            {
-                ModelState.AddModelError(nameof(model.FirstDueDate), "First Due Date is required.");
-            }
-
             if (!model.DueDate.HasValue)
             {
                 ModelState.AddModelError(nameof(model.DueDate), "Due Date is required.");
             }
 
-            if (!model.StartRange.HasValue)
-            {
-                ModelState.AddModelError(nameof(model.StartRange), "Start Range is required.");
-            }
-
-            if (!model.EndRange.HasValue)
-            {
-                ModelState.AddModelError(nameof(model.EndRange), "End Range is required.");
-            }
-            else if (model.StartRange.HasValue && model.EndRange.Value < model.StartRange.Value)
-            {
-                ModelState.AddModelError(nameof(model.EndRange), "End Range must be greater than or equal to Start Range.");
-            }
-
             if (!model.Amount.HasValue || model.Amount.Value <= 0m)
             {
                 ModelState.AddModelError(nameof(model.Amount), "Amount must be greater than zero.");
+            }
+
+            if (isOneTime)
+            {
+                // One Time: only Payment Title, Due Date, Amount — single installment #1.
+                model.StartRange = 1;
+                model.EndRange = 1;
+                model.FirstDueDate ??= model.DueDate;
+                ModelState.Remove(nameof(AddPlanViewModel.FirstDueDate));
+                ModelState.Remove(nameof(AddPlanViewModel.StartRange));
+                ModelState.Remove(nameof(AddPlanViewModel.EndRange));
+            }
+            else
+            {
+                if (!model.FirstDueDate.HasValue)
+                {
+                    ModelState.AddModelError(nameof(model.FirstDueDate), "First Due Date is required.");
+                }
+
+                if (!model.StartRange.HasValue)
+                {
+                    ModelState.AddModelError(nameof(model.StartRange), "Start Range is required.");
+                }
+
+                if (!model.EndRange.HasValue)
+                {
+                    ModelState.AddModelError(nameof(model.EndRange), "End Range is required.");
+                }
+                else if (model.StartRange.HasValue && model.EndRange.Value < model.StartRange.Value)
+                {
+                    ModelState.AddModelError(nameof(model.EndRange), "End Range must be greater than or equal to Start Range.");
+                }
             }
 
             ModelState.Remove(nameof(AddPlanViewModel.InstallmentNo));
@@ -1645,8 +1666,9 @@ namespace PMS.Controllers
                     model.SurchargeRate = 0.05m;
                 }
 
-                var monthsPer = model.Frequency switch
+                var monthsPer = model.Frequency?.Trim() switch
                 {
+                    "One Time" => 0,
                     "Monthly" => 1,
                     "Quarterly" => 3,
                     "Half Yearly" => 6,
@@ -1654,8 +1676,8 @@ namespace PMS.Controllers
                     _ => 1
                 };
 
-                var startRange = model.StartRange!.Value;
-                var endRange = model.EndRange!.Value;
+                var startRange = isOneTime ? 1 : model.StartRange!.Value;
+                var endRange = isOneTime ? 1 : model.EndRange!.Value;
                 var totalInstallments = endRange - startRange + 1;
                 if (totalInstallments < 1 || totalInstallments > 600)
                 {
@@ -1694,8 +1716,10 @@ namespace PMS.Controllers
                 if (existingNos.Count > 0)
                 {
                     ModelState.AddModelError(string.Empty,
-                        $"\"{paymentDescription}\" already has installment(s) {string.Join(", ", existingNos)} in range {startRange}-{endRange}. " +
-                        "A different Payment Title can reuse the same installment numbers.");
+                        isOneTime
+                            ? $"\"{paymentDescription}\" already has a One Time schedule for this plan."
+                            : $"\"{paymentDescription}\" already has installment(s) {string.Join(", ", existingNos)} in range {startRange}-{endRange}. " +
+                              "A different Payment Title can reuse the same installment numbers.");
                     await PopulateAddPlanParentAndSchedulesAsync(model);
                     return View(nameof(AddPlan), model);
                 }
@@ -1712,7 +1736,7 @@ namespace PMS.Controllers
                     await _context.PaymentSchedules
                         .Where(s => s.PlanID == model.PlanID && s.InstallmentNo.HasValue)
                         .MaxAsync(s => (int?)s.InstallmentNo) ?? endRange);
-                plan.DurationMonths = maxInstallment * monthsPer;
+                plan.DurationMonths = isOneTime ? 0 : maxInstallment * monthsPer;
 
                 var usedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 var schedules = new List<PaymentSchedule>(totalInstallments);
@@ -1744,10 +1768,14 @@ namespace PMS.Controllers
                 var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
                 if (!string.IsNullOrEmpty(userId))
                 {
-                    await LogActivityAsync(userId, $"Add Plan Schedule {startRange}-{endRange}", "PaymentPlan", model.PlanID);
+                    await LogActivityAsync(userId,
+                        isOneTime ? "Add Plan Schedule One Time" : $"Add Plan Schedule {startRange}-{endRange}",
+                        "PaymentPlan", model.PlanID);
                 }
 
-                TempData["Success"] = $"Created installments {startRange} to {endRange} ({totalInstallments} row(s)) in PaymentSchedule.";
+                TempData["Success"] = isOneTime
+                    ? $"Created 1 One Time payment schedule for \"{paymentDescription}\"."
+                    : $"Created installments {startRange} to {endRange} ({totalInstallments} row(s)) in PaymentSchedule.";
                 return RedirectToAction(nameof(AddPlan), new { planId = model.PlanID });
             }
             catch (Exception ex)
@@ -1761,6 +1789,8 @@ namespace PMS.Controllers
 
         private async Task PopulateAddPlanParentAndSchedulesAsync(AddPlanViewModel model)
         {
+            await PopulateAddPlanFrequencyOptionsAsync(model);
+
             if (string.IsNullOrWhiteSpace(model.PlanID))
             {
                 return;
@@ -1781,6 +1811,33 @@ namespace PMS.Controllers
                 .OrderBy(s => s.DueDate)
                 .ThenBy(s => s.InstallmentNo)
                 .ToListAsync();
+        }
+
+        /// <summary>
+        /// Loads Frequency dropdown from Configuration where ConfigKey = PaymentFrequencies
+        /// (falls back to PaymentPrequencies / PaymentFrequency if present).
+        /// </summary>
+        private async Task PopulateAddPlanFrequencyOptionsAsync(AddPlanViewModel model)
+        {
+            var config = await _context.Configurations.AsNoTracking()
+                .FirstOrDefaultAsync(c => c.ConfigKey == "PaymentFrequencies")
+                ?? await _context.Configurations.AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.ConfigKey == "PaymentPrequencies")
+                ?? await _context.Configurations.AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.ConfigKey == "PaymentFrequency");
+
+            var options = (config?.ConfigValue ?? string.Empty)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (options.Count == 0)
+            {
+                options = new List<string> { "One Time", "Monthly", "Quarterly", "Half Yearly", "Yearly" };
+            }
+
+            model.FrequencyOptions = options;
         }
 
         [HttpPost]

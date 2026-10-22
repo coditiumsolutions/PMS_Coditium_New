@@ -17,7 +17,7 @@ public sealed class NavigationService : INavigationService
             {
                 new NavigationMenuItemViewModel
                 {
-                    Label = "Customers",
+                    Label = "All Customers",
                     Controller = "Customer",
                     Action = "Index",
                     IconClass = "fas fa-user-friends me-2",

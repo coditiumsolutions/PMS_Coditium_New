@@ -417,7 +417,7 @@
     padding: 0.35rem 0.15rem;
     color: rgba(255, 255, 255, 0.82);
     text-decoration: none;
-    font-weight: 500;
+    font-weight: 400;
     font-size: 0.875rem;
     line-height: 1.25;
     background: none;
@@ -438,7 +438,7 @@
 
 .pms-topbar-module-link.active {
     color: #fff;
-    font-weight: 600;
+    font-weight: 400;
     border-bottom-color: #c9a227;
     background: none;
     box-shadow: none;
@@ -478,24 +478,46 @@
     align-items: center;
     gap: 0.4rem;
     padding: 0.32rem 0.75rem;
-    border-radius: 10px;
+    border-radius: 0;
     color: #fff;
     text-decoration: none;
-    font-weight: 600;
+    font-weight: 400;
     font-size: 0.8125rem;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: var(--pms-topbar-row1-bg);
+    border: 1px solid rgba(255, 255, 255, 0.28);
     transition: background 0.15s ease, border-color 0.15s ease;
     flex: 0 0 auto;
     white-space: nowrap;
 }
 
+.pms-topbar-row--account .pms-topbar-nav,
+.pms-topbar-row--account .pms-topbar-item,
+.pms-topbar-row--account .pms-topbar-label,
+.pms-topbar-row--account .pms-topbar-value {
+    font-family: var(--pms-font);
+    font-weight: 400;
+    font-size: 0.875rem;
+}
+
 .pms-topbar-row--account .pms-topbar-item {
-    color: var(--pms-slate-600);
+    color: #000;
+}
+
+.pms-topbar-row--account .pms-topbar-item > i {
+    color: #000;
+}
+
+.pms-topbar-row--account .pms-topbar-label {
+    color: #000;
+}
+
+.pms-topbar-row--account .pms-topbar-value {
+    color: var(--pms-blue-600);
 }
 
 .pms-topbar-row--account .pms-topbar-item strong {
-    color: var(--pms-slate-800);
+    font-weight: 400;
+    color: var(--pms-blue-600);
 }
 
 .pms-topbar-row--account .pms-topbar-divider {
@@ -503,14 +525,19 @@
 }
 
 .pms-topbar-link:hover {
-    background: rgba(255, 255, 255, 0.18);
-    border-color: rgba(255, 255, 255, 0.35);
+    background: var(--pms-topbar-row1-bg);
+    border-color: rgba(255, 255, 255, 0.45);
     color: #fff;
 }
 
+.pms-topbar-logout {
+    border-radius: 0;
+    background: var(--pms-topbar-row1-bg);
+}
+
 .pms-topbar-logout:hover {
-    background: rgba(239, 68, 68, 0.25);
-    border-color: rgba(252, 165, 165, 0.45);
+    background: var(--pms-topbar-row1-bg);
+    border-color: rgba(255, 255, 255, 0.45);
 }
 
 .pms-app-body {
@@ -699,33 +726,30 @@ body:has(.pms-dashboard) .main-content {
 #appSidebar .sidebar-module-item .nav-link {
     padding: 0.35rem 18px !important;
     margin: 0.2rem 0 !important;
-    border-radius: 0 !important;
-    background: none !important;
+    border-radius: 6px !important;
+    background: transparent !important;
     box-shadow: none !important;
     border-left: none !important;
     transform: none !important;
-    text-decoration: none;
+    text-decoration: none !important;
 }
 
 #appSidebar .sidebar-main-item .nav-link:hover,
 #appSidebar .sidebar-module-item .nav-link:hover {
-    background: none !important;
+    background: rgba(255, 255, 255, 0.12) !important;
     color: #fff !important;
-    text-decoration: underline;
-    text-underline-offset: 3px;
+    text-decoration: none !important;
     transform: none !important;
 }
 
 #appSidebar .sidebar-main-item .nav-link.active,
 #appSidebar .sidebar-module-item .nav-link.active {
-    background: none !important;
+    background: rgba(201, 162, 39, 0.28) !important;
     box-shadow: none !important;
     border-left: none !important;
     color: #fff !important;
-    font-weight: 600;
-    text-decoration: underline;
-    text-decoration-color: #c9a227;
-    text-underline-offset: 3px;
+    font-weight: 400 !important;
+    text-decoration: none !important;
     transform: none !important;
 }
 
@@ -791,6 +815,46 @@ body:has(.pms-dashboard) .main-content {
 #appSidebar .nav-link .fa-hourglass-end { color: #fb7185 !important; }
 #appSidebar .nav-link .fa-water { color: #22d3ee !important; }
 #appSidebar .nav-link .fa-percentage { color: #e879f9 !important; }
+
+/* Main sidebar section links: golden label + icon */
+#appSidebar .sidebar-subsection-toggle .sidebar-subsection-title {
+    color: #c9a227 !important;
+}
+
+#appSidebar .sidebar-subsection-toggle > .fas,
+#appSidebar .sidebar-subsection-toggle > .far,
+#appSidebar .sidebar-subsection-toggle > .fab,
+#appSidebar .sidebar-subsection-toggle .sidebar-subsection-chevron {
+    color: #c9a227 !important;
+}
+
+#appSidebar .sidebar-group-heading-label {
+    color: #2563eb !important;
+    font-size: 1.05rem !important;
+}
+
+/* Sublinks (under section headers / collapse menus): normal weight, golden icons */
+#appSidebar .sidebar-subsection-child .nav-link,
+#appSidebar .sidebar-submenu .nav-link {
+    font-weight: 400 !important;
+}
+
+#appSidebar .sidebar-subsection-child .nav-link.active,
+#appSidebar .sidebar-submenu .nav-link.active {
+    font-weight: 400 !important;
+}
+
+#appSidebar .sidebar-subsection-child .nav-link i,
+#appSidebar .sidebar-submenu .nav-link i {
+    color: #c9a227 !important;
+}
+
+#appSidebar .sidebar-subsection-child .nav-link:hover i,
+#appSidebar .sidebar-subsection-child .nav-link.active i,
+#appSidebar .sidebar-submenu .nav-link:hover i,
+#appSidebar .sidebar-submenu .nav-link.active i {
+    color: #e5c76b !important;
+}
 
 /* Golden divider lines between sidebar links */
 #appSidebar .sidebar-sticky-inner > ul.nav > .nav-item {

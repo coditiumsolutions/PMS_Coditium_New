@@ -61,5 +61,8 @@ namespace PMS.Models
         public bool PlanSaved => !string.IsNullOrWhiteSpace(PlanID);
 
         public List<PaymentSchedule> Schedules { get; set; } = new();
+
+        /// <summary>Options from Configuration.ConfigKey = PaymentFrequencies.</summary>
+        public List<string> FrequencyOptions { get; set; } = new();
     }
 }

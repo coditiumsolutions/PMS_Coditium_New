@@ -1570,8 +1570,9 @@ namespace PMS.Controllers
                 }
                 catch (Exception ex)
                 {
-                    ModelState.AddModelError(string.Empty, "Customer could not be saved. " + ex.Message);
-                    TempData["ErrorMessage"] = "Your record was not saved in the database. Attachments page was not opened. " + ex.Message;
+                    var detail = ex.GetBaseException().Message;
+                    ModelState.AddModelError(string.Empty, "Customer could not be saved. " + detail);
+                    TempData["ErrorMessage"] = "Your record was not saved in the database. Attachments page was not opened. " + detail;
                 }
             }
             else
@@ -1821,8 +1822,9 @@ namespace PMS.Controllers
                 }
                 catch (Exception ex)
                 {
-                    TempData["ErrorMessage"] = "Customer was not saved. " + ex.Message;
-                    ModelState.AddModelError(string.Empty, "Customer could not be saved. " + ex.Message);
+                    var detail = ex.GetBaseException().Message;
+                    TempData["ErrorMessage"] = "Customer was not saved. " + detail;
+                    ModelState.AddModelError(string.Empty, "Customer could not be saved. " + detail);
                 }
             }
             else
@@ -2123,9 +2125,11 @@ namespace PMS.Controllers
             }
             projectPrefix = projectPrefix.Trim().ToUpperInvariant();
 
-            // Get all existing customers with this project prefix (check both with and without dash for backward compatibility)
+            // CustomerID is a global PK — scan by prefix across ALL projects.
+            // Filtering by ProjectID alone can regenerate an ID that already exists
+            // under another project (e.g. ZA00010001 on Qasim Town vs Plaza).
             var existingCustomers = await _context.Customers
-                .Where(c => c.ProjectID == projectID && c.CustomerID != null &&
+                .Where(c => c.CustomerID != null &&
                            (c.CustomerID.StartsWith(projectPrefix) || c.CustomerID.StartsWith(projectPrefix + "-")))
                 .Select(c => c.CustomerID)
                 .ToListAsync();
@@ -2135,26 +2139,17 @@ namespace PMS.Controllers
             foreach (var existingCustomerID in existingCustomers)
             {
                 if (string.IsNullOrEmpty(existingCustomerID)) continue;
-                // Remove prefix to get the number part
-                if (existingCustomerID.StartsWith(projectPrefix))
-                {
-                    string existingNumberPart = existingCustomerID.Substring(projectPrefix.Length);
-                    
-                    // Remove dash if present (for backward compatibility)
-                    if (existingNumberPart.StartsWith("-"))
-                    {
-                        existingNumberPart = existingNumberPart.Substring(1);
-                    }
-                    
-                    // Try to parse the number part
-                    if (int.TryParse(existingNumberPart, out int parsedNumber))
-                    {
-                        if (parsedNumber > maxNumber)
-                        {
-                            maxNumber = parsedNumber;
-                        }
-                    }
-                }
+                // char(10) may return trailing spaces from SQL Server
+                var id = existingCustomerID.Trim().ToUpperInvariant();
+                if (!id.StartsWith(projectPrefix, StringComparison.Ordinal))
+                    continue;
+
+                string existingNumberPart = id.Substring(projectPrefix.Length);
+                if (existingNumberPart.StartsWith('-'))
+                    existingNumberPart = existingNumberPart.Substring(1);
+
+                if (int.TryParse(existingNumberPart, out int parsedNumber) && parsedNumber > maxNumber)
+                    maxNumber = parsedNumber;
             }
 
             // Generate next sequential number

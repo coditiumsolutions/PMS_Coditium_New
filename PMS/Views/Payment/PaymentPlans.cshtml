@@ -66,15 +66,15 @@
                                 <td data-label="Plan Name">
                                     <a asp-action="AddPlan"
                                        asp-route-planId="@plan.PlanID"
-                                       class="text-decoration-none fw-semibold">
+                                       class="text-decoration-none">
                                         @plan.PlanName
                                     </a>
                                 </td>
-                                <td class="text-end fw-semibold" data-label="Total (PKR)">
+                                <td class="text-end" data-label="Total (PKR)">
                                     @plan.TotalAmount.ToString("N0", EnUs)
                                 </td>
-                                <td data-label="Curr.">
-                                    <span class="pms-pill pms-pill--neutral text-uppercase">@(string.IsNullOrWhiteSpace(plan.Currency) ? "—" : plan.Currency)</span>
+                                <td data-label="Curr." class="text-uppercase">
+                                    @(string.IsNullOrWhiteSpace(plan.Currency) ? "—" : plan.Currency)
                                 </td>
                                 <td data-label="Duration">
                                     @(plan.DurationMonths.HasValue
@@ -82,7 +82,7 @@
                                         : "—")
                                 </td>
                                 <td data-label="Freq.">
-                                    <span class="pms-pill pms-pill--neutral">@(string.IsNullOrWhiteSpace(plan.Frequency) ? "—" : plan.Frequency)</span>
+                                    @(string.IsNullOrWhiteSpace(plan.Frequency) ? "—" : plan.Frequency)
                                 </td>
                                 <td data-label="Sched.">
                                     @(plan.PaymentSchedules?.Count ?? 0)
@@ -100,7 +100,7 @@
     .pms-payment-listing .pms-payment-plans-heading {
         font-size: 1.2rem;
         font-weight: 700;
-        color: #0f172a;
+        color: #2563eb;
     }
 
     .pms-payment-listing .pms-payment-plans-search {
@@ -111,8 +111,11 @@
     }
 
     .pms-payment-listing .pms-payment-plans-search .form-control {
-        min-height: var(--pms-listing-control-h, 36px);
-        height: var(--pms-listing-control-h, 36px);
+        min-height: 30px;
+        height: 30px;
+        padding-top: 0.2rem;
+        padding-bottom: 0.2rem;
+        font-size: 0.875rem;
         border-radius: 0 !important;
         border: 1px solid #94a3b8;
     }
@@ -138,8 +141,9 @@
     .pms-payment-listing #plansTable,
     .pms-payment-listing #plansTable tbody td,
     .pms-payment-listing #plansTable tbody td a,
-    .pms-payment-listing #plansTable tbody td .fw-semibold {
+    .pms-payment-listing #plansTable tbody td .pms-pill {
         color: #000 !important;
+        font-weight: 400 !important;
     }
 
     .pms-payment-listing #plansTable thead th {
@@ -173,6 +177,7 @@
         overflow: hidden;
         text-overflow: ellipsis;
         font-size: 0.875rem;
+        font-weight: 400 !important;
         border-bottom: 1px solid #e2e8f0 !important;
         max-width: none;
     }
@@ -193,6 +198,7 @@
 
     .pms-payment-listing #plansTable .pms-pill {
         font-size: 0.78rem;
+        font-weight: 400 !important;
         padding: 0.15rem 0.45rem;
         line-height: 1.2;
         border-radius: 999px;
