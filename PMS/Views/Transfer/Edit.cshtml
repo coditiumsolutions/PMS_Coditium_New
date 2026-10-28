@@ -4,12 +4,21 @@
     ViewData["Title"] = "Edit Transfer";
     var isApproved = Model.WorkFlowStatus == "Approved";
     var openAttachmentsTab = ViewBag.OpenAttachmentsTab == true;
+    var canEditFields = ViewBag.FieldsEditable as bool? ?? string.Equals(Model.WorkFlowStatus?.Trim(), "Created", StringComparison.OrdinalIgnoreCase);
+    string D(string? v) => string.IsNullOrWhiteSpace(v) ? "—" : v.Trim();
 }
+<link rel="stylesheet" href="~/css/transfer-wizard-form.css" asp-append-version="true" />
 
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <h2 class="mb-0"><i class="fas fa-edit me-2"></i>Edit Transfer</h2>
-    <a asp-action="Details" asp-route-id="@Model.TransferID" class="btn btn-outline-primary"><i class="fas fa-arrow-left me-2"></i>Back to Details</a>
+    <a asp-action="Details" asp-route-id="@Model.TransferID" class="btn pms-transfer-edit-btn"><i class="fas fa-arrow-left me-1"></i>Back</a>
 </div>
+@if (!canEditFields)
+{
+    <div class="alert alert-info py-2 mb-3">
+        Field values are locked after status leaves <strong>Created</strong>. You can only change <strong>Workflow Status</strong>.
+    </div>
+}
 
 @if (TempData["ErrorMessage"] != null)
 {
@@ -33,16 +42,20 @@
             <input type="hidden" asp-for="SellerBiometric" id="SellerBiometric" />
             <input type="hidden" asp-for="BuyerBiometric" id="BuyerBiometric" />
 
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <label class="form-label fw-bold">Workflow Status</label>
-                    <select asp-for="WorkFlowStatus" class="form-select">
-                        @foreach (var s in (string[])ViewBag.WorkflowStatuses)
-                        {
-                            <option value="@s" selected="@(Model.WorkFlowStatus == s)">@s</option>
-                        }
-                    </select>
-                    <small class="text-muted">Setting to Approved will lock this record and update the customer file with buyer details.</small>
+            <div class="transfer-wizard-form mb-3">
+                <div class="row g-2 align-items-start transfer-wizard-row">
+                    <div class="col-md-2 transfer-wizard-title"><label asp-for="WorkFlowStatus">Workflow Status</label></div>
+                    <div class="col-md-4">
+                        <select asp-for="WorkFlowStatus" class="form-select transfer-wizard-field">
+                            @foreach (var s in (string[])ViewBag.WorkflowStatuses)
+                            {
+                                <option value="@s" selected="@(Model.WorkFlowStatus == s)">@s</option>
+                            }
+                        </select>
+                        <small class="text-muted">Approved locks the record and updates the customer file with buyer details.</small>
+                    </div>
+                    <div class="col-md-2 transfer-wizard-title"><label>Customer ID</label></div>
+                    <div class="col-md-4"><div class="transfer-wizard-value">@Model.CustomerID</div></div>
                 </div>
             </div>
 
@@ -56,210 +69,399 @@
             </ul>
             <div class="tab-content border border-top-0 p-3" id="editTabContent">
                 <div class="tab-pane fade @(openAttachmentsTab ? "" : "show active")" id="seller" role="tabpanel">
-                    <div class="row g-2">
-                        <div class="col-md-6">
-                            <label class="form-label">Seller Name</label>
-                            <input asp-for="SellerName" id="SellerName" class="form-control" placeholder="Letters only" />
-                            <span asp-validation-for="SellerName" class="text-danger small"></span>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Son/D/W/o</label>
-                            <input asp-for="SellerFatherName" id="SellerFatherName" class="form-control" placeholder="Letters only" />
-                            <span asp-validation-for="SellerFatherName" class="text-danger small"></span>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">CNIC</label>
-                            <input asp-for="SellerCNIC" id="SellerCNIC" class="form-control" placeholder="XXXXX-XXXXXXX-X" maxlength="15" />
-                            <small class="text-muted">Digits only — hyphens auto-inserted</small>
-                            <span asp-validation-for="SellerCNIC" class="text-danger small d-block"></span>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Contact</label>
-                            <input asp-for="SellerContact" id="SellerContact" class="form-control" placeholder="Digits and + only" />
-                            <span asp-validation-for="SellerContact" class="text-danger small"></span>
-                        </div>
-                        <div class="col-12"><label class="form-label">Address</label><input asp-for="SellerAddress" class="form-control" /></div>
+                    <div class="transfer-wizard-form @(canEditFields ? "" : "transfer-wizard-form--readonly")">
+                        @if (canEditFields)
+                        {
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="SellerName">Seller Name</label></div>
+                                <div class="col-md-4">
+                                    <input asp-for="SellerName" id="SellerName" class="form-control transfer-wizard-field" placeholder="Letters only" />
+                                    <span asp-validation-for="SellerName" class="text-danger small"></span>
+                                </div>
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="SellerFatherName">Son/D/W/o</label></div>
+                                <div class="col-md-4">
+                                    <input asp-for="SellerFatherName" id="SellerFatherName" class="form-control transfer-wizard-field" placeholder="Letters only" />
+                                    <span asp-validation-for="SellerFatherName" class="text-danger small"></span>
+                                </div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="SellerCNIC">CNIC</label></div>
+                                <div class="col-md-4">
+                                    <input asp-for="SellerCNIC" id="SellerCNIC" class="form-control transfer-wizard-field" placeholder="XXXXX-XXXXXXX-X" maxlength="15" />
+                                    <small class="text-muted">Digits only — hyphens auto-inserted</small>
+                                    <span asp-validation-for="SellerCNIC" class="text-danger small d-block"></span>
+                                </div>
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="SellerContact">Contact</label></div>
+                                <div class="col-md-4">
+                                    <input asp-for="SellerContact" id="SellerContact" class="form-control transfer-wizard-field" placeholder="Digits and + only" />
+                                    <span asp-validation-for="SellerContact" class="text-danger small"></span>
+                                </div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="SellerAddress">Address</label></div>
+                                <div class="col-md-10"><input asp-for="SellerAddress" class="form-control transfer-wizard-field" /></div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label>Seller Name</label></div>
+                                <div class="col-md-4"><div class="transfer-wizard-value">@D(Model.SellerName)</div></div>
+                                <div class="col-md-2 transfer-wizard-title"><label>Son/D/W/o</label></div>
+                                <div class="col-md-4"><div class="transfer-wizard-value">@D(Model.SellerFatherName)</div></div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label>CNIC</label></div>
+                                <div class="col-md-4"><div class="transfer-wizard-value">@D(Model.SellerCNIC)</div></div>
+                                <div class="col-md-2 transfer-wizard-title"><label>Contact</label></div>
+                                <div class="col-md-4"><div class="transfer-wizard-value">@D(Model.SellerContact)</div></div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label>Address</label></div>
+                                <div class="col-md-10"><div class="transfer-wizard-value">@D(Model.SellerAddress)</div></div>
+                            </div>
+                        }
                     </div>
                 </div>
                 <div class="tab-pane fade" id="buyer" role="tabpanel">
-                    <div class="row g-2">
-                        <div class="col-md-6">
-                            <label class="form-label">Full Name <span class="text-danger">*</span></label>
-                            <input asp-for="BuyerName" id="BuyerName" class="form-control" placeholder="Enter full name" required />
-                            <span asp-validation-for="BuyerName" class="text-danger small"></span>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Son/D/W/o</label>
-                            <input asp-for="BuyerFatherName" id="BuyerFatherName" class="form-control" placeholder="Letters only" />
-                            <span asp-validation-for="BuyerFatherName" class="text-danger small"></span>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">National ID (CNIC)</label>
-                            <input asp-for="BuyerCNIC" id="BuyerCNIC" class="form-control" placeholder="XXXXX-XXXXXXX-X" maxlength="15" />
-                            <small class="text-muted">Required format: 5 digits, hyphen, 7 digits, hyphen, 1 digit.</small>
-                            <span asp-validation-for="BuyerCNIC" class="text-danger small d-block"></span>
-                            <span id="buyerCnicError" class="text-danger small d-none"></span>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Passport Number</label>
-                            <input asp-for="BuyerPassportNo" id="BuyerPassportNo" class="form-control" placeholder="Min 5 characters if no CNIC" />
-                            <small class="text-muted">Provide at least 5 characters if not providing CNIC.</small>
-                            <span asp-validation-for="BuyerPassportNo" class="text-danger small d-block"></span>
-                            <span id="buyerPassportError" class="text-danger small d-none"></span>
-                        </div>
-                        <div id="buyerCnicPassportRule" class="col-12 d-none">
-                            <div class="alert alert-warning small py-2 mb-0"><i class="fas fa-exclamation-triangle me-1"></i>Either Buyer CNIC or Passport Number must be provided.</div>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Date of Birth</label>
-                            <input asp-for="BuyerDOB" id="BuyerDOB" type="date" class="form-control" lang="en-GB" value="@(Model.BuyerDOB?.ToString("yyyy-MM-dd") ?? "1990-01-01")" />
-                            <small class="text-muted">Use calendar selection (DD-MM-YYYY).</small>
-                            <span asp-validation-for="BuyerDOB" class="text-danger small"></span>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Gender</label>
-                            <select asp-for="BuyerGender" class="form-select">
-                                <option value="">Select Gender</option>
-                                <option value="Male">Male</option>
-                                <option value="Female">Female</option>
-                                <option value="Other">Other</option>
-                            </select>
-                            <span asp-validation-for="BuyerGender" class="text-danger small"></span>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Nationality</label>
-                            <input asp-for="BuyerNationality" class="form-control" list="nationalityList-transfer-edit" autocomplete="off" placeholder="Select from list or type a value" />
-                            <datalist id="nationalityList-transfer-edit">
-                                @if (ViewBag.Nationalities != null)
-                                {
-                                    foreach (var nationality in (IEnumerable<string>)ViewBag.Nationalities)
-                                    {
-                                        <option value="@nationality"></option>
-                                    }
-                                }
-                            </datalist>
-                            <small class="text-muted d-block">Suggestions from configuration; you may enter any nationality.</small>
-                            <span asp-validation-for="BuyerNationality" class="text-danger small"></span>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Email Address</label>
-                            <input asp-for="BuyerEmail" type="email" class="form-control" />
-                            <span asp-validation-for="BuyerEmail" class="text-danger small"></span>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Phone (landline / primary contact) <span class="text-danger">*</span></label>
-                            <input asp-for="BuyerPhone" id="BuyerPhone" class="form-control" required />
-                            <span asp-validation-for="BuyerPhone" class="text-danger small"></span>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Mobile <span class="text-danger">*</span></label>
-                            <input asp-for="BuyerMobile" id="BuyerMobile" class="form-control" required />
-                            <span asp-validation-for="BuyerMobile" class="text-danger small"></span>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Mobile 2</label>
-                            <input asp-for="BuyerMobile2" id="BuyerMobile2" class="form-control" />
-                            <small class="text-muted">Optional. Must differ from Phone and Mobile.</small>
-                            <span asp-validation-for="BuyerMobile2" class="text-danger small"></span>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label">Mailing Address <span class="text-danger">*</span></label>
-                            <textarea asp-for="BuyerMailingAddress" class="form-control" rows="2" required></textarea>
-                            <span asp-validation-for="BuyerMailingAddress" class="text-danger small"></span>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label">Permanent Address</label>
-                            <textarea asp-for="BuyerPermanentAddress" class="form-control" rows="2"></textarea>
-                            <span asp-validation-for="BuyerPermanentAddress" class="text-danger small"></span>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">City <span class="text-danger">*</span></label>
-                            <select asp-for="BuyerCity" class="form-select" required>
-                                <option value="">Select City</option>
-                                @if (ViewBag.Cities != null)
-                                {
-                                    foreach (var city in (IEnumerable<string>)ViewBag.Cities)
-                                    {
-                                        <option value="@city">@city</option>
-                                    }
-                                }
-                            </select>
-                            <span asp-validation-for="BuyerCity" class="text-danger small"></span>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Country <span class="text-danger">*</span></label>
-                            <select asp-for="BuyerCountry" class="form-select" required>
-                                <option value="">Select Country</option>
-                                @if (ViewBag.Countries != null)
-                                {
-                                    foreach (var country in (IEnumerable<string>)ViewBag.Countries)
-                                    {
-                                        <option value="@country">@country</option>
-                                    }
-                                }
-                            </select>
-                            <span asp-validation-for="BuyerCountry" class="text-danger small"></span>
-                        </div>
+                    <div class="transfer-wizard-form @(canEditFields ? "" : "transfer-wizard-form--readonly")">
+                        @if (canEditFields)
+                        {
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="BuyerName">Full Name <span class="text-danger">*</span></label></div>
+                                <div class="col-md-4">
+                                    <input asp-for="BuyerName" id="BuyerName" class="form-control transfer-wizard-field" placeholder="Enter full name" required />
+                                    <span asp-validation-for="BuyerName" class="text-danger small"></span>
+                                </div>
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="BuyerFatherName">Son/D/W/o</label></div>
+                                <div class="col-md-4">
+                                    <input asp-for="BuyerFatherName" id="BuyerFatherName" class="form-control transfer-wizard-field" placeholder="Letters only" />
+                                    <span asp-validation-for="BuyerFatherName" class="text-danger small"></span>
+                                </div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="BuyerCNIC">National ID (CNIC)</label></div>
+                                <div class="col-md-4">
+                                    <input asp-for="BuyerCNIC" id="BuyerCNIC" class="form-control transfer-wizard-field" placeholder="XXXXX-XXXXXXX-X" maxlength="15" />
+                                    <small class="text-muted">Format: 11111-1111111-1</small>
+                                    <span asp-validation-for="BuyerCNIC" class="text-danger small d-block"></span>
+                                    <span id="buyerCnicError" class="text-danger small d-none"></span>
+                                </div>
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="BuyerPassportNo">Passport Number</label></div>
+                                <div class="col-md-4">
+                                    <input asp-for="BuyerPassportNo" id="BuyerPassportNo" class="form-control transfer-wizard-field" placeholder="Min 5 characters if no CNIC" />
+                                    <small class="text-muted">Min 5 characters if no CNIC</small>
+                                    <span asp-validation-for="BuyerPassportNo" class="text-danger small d-block"></span>
+                                    <span id="buyerPassportError" class="text-danger small d-none"></span>
+                                </div>
+                            </div>
+                            <div id="buyerCnicPassportRule" class="row transfer-wizard-row d-none">
+                                <div class="col-12">
+                                    <div class="alert alert-warning small py-2 mb-0"><i class="fas fa-exclamation-triangle me-1"></i>Either Buyer CNIC or Passport Number must be provided.</div>
+                                </div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="BuyerDOB">Date of Birth</label></div>
+                                <div class="col-md-4">
+                                    <input asp-for="BuyerDOB" id="BuyerDOB" type="date" class="form-control transfer-wizard-field" lang="en-GB" value="@(Model.BuyerDOB?.ToString("yyyy-MM-dd") ?? "1990-01-01")" />
+                                    <span asp-validation-for="BuyerDOB" class="text-danger small"></span>
+                                </div>
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="BuyerGender">Gender</label></div>
+                                <div class="col-md-4">
+                                    <select asp-for="BuyerGender" class="form-select transfer-wizard-field">
+                                        <option value="">Select Gender</option>
+                                        <option value="Male">Male</option>
+                                        <option value="Female">Female</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                    <span asp-validation-for="BuyerGender" class="text-danger small"></span>
+                                </div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="BuyerNationality">Nationality</label></div>
+                                <div class="col-md-4">
+                                    <input asp-for="BuyerNationality" class="form-control transfer-wizard-field" list="nationalityList-transfer-edit" autocomplete="off" placeholder="Select or type" />
+                                    <datalist id="nationalityList-transfer-edit">
+                                        @if (ViewBag.Nationalities != null)
+                                        {
+                                            foreach (var nationality in (IEnumerable<string>)ViewBag.Nationalities)
+                                            {
+                                                <option value="@nationality"></option>
+                                            }
+                                        }
+                                    </datalist>
+                                    <span asp-validation-for="BuyerNationality" class="text-danger small"></span>
+                                </div>
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="BuyerEmail">Email Address</label></div>
+                                <div class="col-md-4">
+                                    <input asp-for="BuyerEmail" type="email" class="form-control transfer-wizard-field" />
+                                    <span asp-validation-for="BuyerEmail" class="text-danger small"></span>
+                                </div>
+                            </div>
+                            <div class="row transfer-wizard-row transfer-wizard-row--section">
+                                <div class="col-12 transfer-wizard-section">Contact Information</div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="BuyerPhone">Phone <span class="text-danger">*</span></label></div>
+                                <div class="col-md-4">
+                                    <input asp-for="BuyerPhone" id="BuyerPhone" class="form-control transfer-wizard-field" required />
+                                    <span asp-validation-for="BuyerPhone" class="text-danger small"></span>
+                                </div>
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="BuyerMobile">Mobile <span class="text-danger">*</span></label></div>
+                                <div class="col-md-4">
+                                    <input asp-for="BuyerMobile" id="BuyerMobile" class="form-control transfer-wizard-field" required />
+                                    <span asp-validation-for="BuyerMobile" class="text-danger small"></span>
+                                </div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="BuyerMobile2">Mobile 2</label></div>
+                                <div class="col-md-4">
+                                    <input asp-for="BuyerMobile2" id="BuyerMobile2" class="form-control transfer-wizard-field" />
+                                    <small class="text-muted">Optional; must differ from Phone and Mobile</small>
+                                    <span asp-validation-for="BuyerMobile2" class="text-danger small"></span>
+                                </div>
+                                <div class="col-md-2 transfer-wizard-title"></div>
+                                <div class="col-md-4"></div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="BuyerMailingAddress">Mailing Address <span class="text-danger">*</span></label></div>
+                                <div class="col-md-10">
+                                    <textarea asp-for="BuyerMailingAddress" class="form-control transfer-wizard-field" rows="2" required></textarea>
+                                    <span asp-validation-for="BuyerMailingAddress" class="text-danger small"></span>
+                                </div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="BuyerPermanentAddress">Permanent Address</label></div>
+                                <div class="col-md-10">
+                                    <textarea asp-for="BuyerPermanentAddress" class="form-control transfer-wizard-field" rows="2"></textarea>
+                                    <span asp-validation-for="BuyerPermanentAddress" class="text-danger small"></span>
+                                </div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="BuyerCity">City <span class="text-danger">*</span></label></div>
+                                <div class="col-md-4">
+                                    <select asp-for="BuyerCity" class="form-select transfer-wizard-field" required>
+                                        <option value="">Select City</option>
+                                        @if (ViewBag.Cities != null)
+                                        {
+                                            foreach (var city in (IEnumerable<string>)ViewBag.Cities)
+                                            {
+                                                <option value="@city">@city</option>
+                                            }
+                                        }
+                                    </select>
+                                    <span asp-validation-for="BuyerCity" class="text-danger small"></span>
+                                </div>
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="BuyerCountry">Country <span class="text-danger">*</span></label></div>
+                                <div class="col-md-4">
+                                    <select asp-for="BuyerCountry" class="form-select transfer-wizard-field" required>
+                                        <option value="">Select Country</option>
+                                        @if (ViewBag.Countries != null)
+                                        {
+                                            foreach (var country in (IEnumerable<string>)ViewBag.Countries)
+                                            {
+                                                <option value="@country">@country</option>
+                                            }
+                                        }
+                                    </select>
+                                    <span asp-validation-for="BuyerCountry" class="text-danger small"></span>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label>Full Name</label></div>
+                                <div class="col-md-4"><div class="transfer-wizard-value">@D(Model.BuyerName)</div></div>
+                                <div class="col-md-2 transfer-wizard-title"><label>Son/D/W/o</label></div>
+                                <div class="col-md-4"><div class="transfer-wizard-value">@D(Model.BuyerFatherName)</div></div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label>National ID (CNIC)</label></div>
+                                <div class="col-md-4"><div class="transfer-wizard-value">@D(Model.BuyerCNIC)</div></div>
+                                <div class="col-md-2 transfer-wizard-title"><label>Passport Number</label></div>
+                                <div class="col-md-4"><div class="transfer-wizard-value">@D(Model.BuyerPassportNo)</div></div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label>Date of Birth</label></div>
+                                <div class="col-md-4"><div class="transfer-wizard-value">@(Model.BuyerDOB?.ToString("dd-MM-yyyy") ?? "—")</div></div>
+                                <div class="col-md-2 transfer-wizard-title"><label>Gender</label></div>
+                                <div class="col-md-4"><div class="transfer-wizard-value">@D(Model.BuyerGender)</div></div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label>Nationality</label></div>
+                                <div class="col-md-4"><div class="transfer-wizard-value">@D(Model.BuyerNationality)</div></div>
+                                <div class="col-md-2 transfer-wizard-title"><label>Email Address</label></div>
+                                <div class="col-md-4"><div class="transfer-wizard-value">@D(Model.BuyerEmail)</div></div>
+                            </div>
+                            <div class="row transfer-wizard-row transfer-wizard-row--section">
+                                <div class="col-12 transfer-wizard-section">Contact Information</div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label>Phone</label></div>
+                                <div class="col-md-4"><div class="transfer-wizard-value">@D(Model.BuyerPhone)</div></div>
+                                <div class="col-md-2 transfer-wizard-title"><label>Mobile</label></div>
+                                <div class="col-md-4"><div class="transfer-wizard-value">@D(Model.BuyerMobile)</div></div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label>Mobile 2</label></div>
+                                <div class="col-md-4"><div class="transfer-wizard-value">@D(Model.BuyerMobile2)</div></div>
+                                <div class="col-md-2 transfer-wizard-title"></div>
+                                <div class="col-md-4"></div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label>Mailing Address</label></div>
+                                <div class="col-md-10"><div class="transfer-wizard-value">@D(Model.BuyerMailingAddress)</div></div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label>Permanent Address</label></div>
+                                <div class="col-md-10"><div class="transfer-wizard-value">@D(Model.BuyerPermanentAddress)</div></div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label>City</label></div>
+                                <div class="col-md-4"><div class="transfer-wizard-value">@D(Model.BuyerCity)</div></div>
+                                <div class="col-md-2 transfer-wizard-title"><label>Country</label></div>
+                                <div class="col-md-4"><div class="transfer-wizard-value">@D(Model.BuyerCountry)</div></div>
+                            </div>
+                        }
                     </div>
                 </div>
                 <div class="tab-pane fade" id="payment" role="tabpanel">
-                    <div class="row g-2">
-                        <div class="col-md-6"><label class="form-label">Transfer Fee Due</label><input asp-for="TransferFeeDue" type="number" step="0.01" class="form-control" /></div>
-                        <div class="col-md-6"><label class="form-label">Transfer Fee Paid</label><input asp-for="TransferFeePaid" type="number" step="0.01" class="form-control" /></div>
-                        <div class="col-md-6"><label class="form-label">Payment Date</label><input asp-for="PaymentDate" type="date" class="form-control" /></div>
-                        <div class="col-md-6">
-                            <label class="form-label">Payment Mode</label>
-                            <select asp-for="PaymentMode" class="form-select">
-                                <option value="">Select Payment Mode</option>
-                                @if (ViewBag.PaymentMethods != null)
-                                {
-                                    @foreach (var pm in (IEnumerable<string>)ViewBag.PaymentMethods)
-                                    {
-                                        <option value="@pm">@pm</option>
-                                    }
-                                }
-                            </select>
-                        </div>
-                        <div class="col-md-6"><label class="form-label">Challan No</label><input asp-for="PaymentChallanNo" class="form-control" /></div>
-                        <div class="col-md-6">
-                            <label class="form-label">Bank name</label>
-                            <select asp-for="BankName" class="form-select">
-                                <option value="">Select bank</option>
-                                @{
-                                    var bankNamesEdit = ViewBag.BankNames as IEnumerable<string> ?? Array.Empty<string>();
-                                    var currentBankEdit = Model.BankName?.Trim() ?? "";
-                                }
-                                @if (!string.IsNullOrEmpty(currentBankEdit) && !bankNamesEdit.Any(b => string.Equals(b, currentBankEdit, StringComparison.OrdinalIgnoreCase)))
-                                {
-                                    <option value="@currentBankEdit" selected>@currentBankEdit</option>
-                                }
-                                @foreach (var bank in bankNamesEdit)
-                                {
-                                    if (string.Equals(bank, currentBankEdit, StringComparison.OrdinalIgnoreCase))
-                                    {
-                                        <option value="@bank" selected>@bank</option>
-                                    }
-                                    else
-                                    {
-                                        <option value="@bank">@bank</option>
-                                    }
-                                }
-                            </select>
-                            <small class="text-muted">From configuration <code>banks</code>.</small>
-                        </div>
-                        <div class="col-12"><label class="form-label">Payment details</label><textarea asp-for="PaymentDetails" class="form-control" rows="2"></textarea></div>
+                    @{
+                        var bankNamesEdit = ViewBag.BankNames as IEnumerable<string> ?? Array.Empty<string>();
+                        var currentBankEdit = Model.BankName?.Trim() ?? "";
+                    }
+                    <div class="transfer-wizard-form @(canEditFields ? "" : "transfer-wizard-form--readonly")">
+                        @if (canEditFields)
+                        {
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="TransferFeeDue">Transfer Fee Due</label></div>
+                                <div class="col-md-4"><input asp-for="TransferFeeDue" type="number" step="0.01" class="form-control transfer-wizard-field" /></div>
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="TransferFeePaid">Transfer Fee Paid</label></div>
+                                <div class="col-md-4"><input asp-for="TransferFeePaid" type="number" step="0.01" class="form-control transfer-wizard-field" /></div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="PaymentDate">Payment Date</label></div>
+                                <div class="col-md-4"><input asp-for="PaymentDate" type="date" class="form-control transfer-wizard-field" /></div>
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="PaymentMode">Payment Mode</label></div>
+                                <div class="col-md-4">
+                                    <select asp-for="PaymentMode" class="form-select transfer-wizard-field">
+                                        <option value="">Select Payment Mode</option>
+                                        @if (ViewBag.PaymentMethods != null)
+                                        {
+                                            @foreach (var pm in (IEnumerable<string>)ViewBag.PaymentMethods)
+                                            {
+                                                <option value="@pm">@pm</option>
+                                            }
+                                        }
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="PaymentChallanNo">Challan No</label></div>
+                                <div class="col-md-4"><input asp-for="PaymentChallanNo" class="form-control transfer-wizard-field" /></div>
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="BankName">Bank name</label></div>
+                                <div class="col-md-4">
+                                    <select asp-for="BankName" class="form-select transfer-wizard-field">
+                                        <option value="">Select bank</option>
+                                        @if (!string.IsNullOrEmpty(currentBankEdit) && !bankNamesEdit.Any(b => string.Equals(b, currentBankEdit, StringComparison.OrdinalIgnoreCase)))
+                                        {
+                                            <option value="@currentBankEdit" selected>@currentBankEdit</option>
+                                        }
+                                        @foreach (var bank in bankNamesEdit)
+                                        {
+                                            if (string.Equals(bank, currentBankEdit, StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                <option value="@bank" selected>@bank</option>
+                                            }
+                                            else
+                                            {
+                                                <option value="@bank">@bank</option>
+                                            }
+                                        }
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="PaymentDetails">Payment details</label></div>
+                                <div class="col-md-10"><textarea asp-for="PaymentDetails" class="form-control transfer-wizard-field" rows="2"></textarea></div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label>Transfer Fee Due</label></div>
+                                <div class="col-md-4"><div class="transfer-wizard-value">@(Model.TransferFeeDue?.ToString("N2") ?? "—")</div></div>
+                                <div class="col-md-2 transfer-wizard-title"><label>Transfer Fee Paid</label></div>
+                                <div class="col-md-4"><div class="transfer-wizard-value">@(Model.TransferFeePaid?.ToString("N2") ?? "—")</div></div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label>Payment Date</label></div>
+                                <div class="col-md-4"><div class="transfer-wizard-value">@(Model.PaymentDate?.ToString("MMM dd, yyyy") ?? "—")</div></div>
+                                <div class="col-md-2 transfer-wizard-title"><label>Payment Mode</label></div>
+                                <div class="col-md-4"><div class="transfer-wizard-value">@D(Model.PaymentMode)</div></div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label>Challan No</label></div>
+                                <div class="col-md-4"><div class="transfer-wizard-value">@D(Model.PaymentChallanNo)</div></div>
+                                <div class="col-md-2 transfer-wizard-title"><label>Bank name</label></div>
+                                <div class="col-md-4"><div class="transfer-wizard-value">@D(Model.BankName)</div></div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label>Payment details</label></div>
+                                <div class="col-md-10"><div class="transfer-wizard-value">@D(Model.PaymentDetails)</div></div>
+                            </div>
+                        }
                     </div>
                 </div>
                 <div class="tab-pane fade" id="comments" role="tabpanel">
-                    <div class="mb-2"><label class="form-label">Details</label><textarea asp-for="Details" class="form-control" rows="2"></textarea></div>
-                    <div class="mb-2"><label class="form-label">CRO Comments</label><textarea asp-for="CROComments" class="form-control" rows="2"></textarea></div>
-                    <div class="mb-2"><label class="form-label">Accounts Comments</label><textarea asp-for="AccountsComments" class="form-control" rows="2"></textarea></div>
-                    <div class="mb-2"><label class="form-label">Transfer Comments</label><textarea asp-for="TransferComments" class="form-control" rows="2"></textarea></div>
+                    <div class="transfer-wizard-form @(canEditFields ? "" : "transfer-wizard-form--readonly")">
+                        @if (canEditFields)
+                        {
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="Details">Details</label></div>
+                                <div class="col-md-10"><textarea asp-for="Details" class="form-control transfer-wizard-field" rows="2"></textarea></div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="CROComments">CRO Comments</label></div>
+                                <div class="col-md-10"><textarea asp-for="CROComments" class="form-control transfer-wizard-field" rows="2"></textarea></div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="AccountsComments">Accounts Comments</label></div>
+                                <div class="col-md-10"><textarea asp-for="AccountsComments" class="form-control transfer-wizard-field" rows="2"></textarea></div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label asp-for="TransferComments">Transfer Comments</label></div>
+                                <div class="col-md-10"><textarea asp-for="TransferComments" class="form-control transfer-wizard-field" rows="2"></textarea></div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label>Details</label></div>
+                                <div class="col-md-10"><div class="transfer-wizard-value">@D(Model.Details)</div></div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label>CRO Comments</label></div>
+                                <div class="col-md-10"><div class="transfer-wizard-value">@D(Model.CROComments)</div></div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label>Accounts Comments</label></div>
+                                <div class="col-md-10"><div class="transfer-wizard-value">@D(Model.AccountsComments)</div></div>
+                            </div>
+                            <div class="row g-2 align-items-start transfer-wizard-row">
+                                <div class="col-md-2 transfer-wizard-title"><label>Transfer Comments</label></div>
+                                <div class="col-md-10"><div class="transfer-wizard-value">@D(Model.TransferComments)</div></div>
+                            </div>
+                        }
+                    </div>
                 </div>
                 <div class="tab-pane fade" id="newJointOwners" role="tabpanel">
                     <div class="alert alert-info py-2">
                         These joint owners will replace customer joint owners when this transfer is approved.
                     </div>
+                    @if (canEditFields)
+                    {
                     <div class="row g-2 mb-3">
                         <div class="col-md-4">
                             <label class="form-label">Joint Owner Name *</label>
@@ -297,6 +499,7 @@
                             </button>
                         </div>
                     </div>
+                    }
                     <div class="table-responsive">
                         <table class="table table-sm table-hover" id="transferJointOwnersTable">
                             <thead>
@@ -317,7 +520,15 @@
                     </div>
                 </div>
                 <div class="tab-pane fade @(openAttachmentsTab ? "show active" : "")" id="attachments" role="tabpanel">
-                    <p class="text-muted small mb-3">Upload documents. Accepted: JPG, PNG, GIF, BMP, PDF. Max 8MB per file. Multiple files are allowed in all categories.</p>
+                    @if (canEditFields)
+                    {
+                        <p class="text-muted small mb-3">Upload documents. Accepted: JPG, PNG, GIF, BMP, PDF. Max 8MB per file. Multiple files are allowed in all categories.</p>
+                    }
+                    else
+                    {
+                        <p class="text-muted small mb-3">Attachments are view-only while status is not <strong>Created</strong>.</p>
+                    }
+                    <div class="@(canEditFields ? "" : "transfer-attachments-readonly")">
                     <div class="row">
                         <div class="col-md-6 mb-4">
                             <div class="card h-100" style="border-color: rgb(104, 167, 226);">
@@ -506,16 +717,53 @@
                             <div id="biometricDemoMessage" class="alert alert-info small py-2 mb-0" style="display:none;">Demo biometric data loaded. Click <strong>Save</strong> to persist.</div>
                         </div>
                     </div>
+                    </div>
                 </div>
             </div>
 
-            <div class="mt-4">
-                <button type="submit" class="btn btn-primary"><i class="fas fa-save me-2"></i>Save</button>
-                <a asp-action="Details" asp-route-id="@Model.TransferID" class="btn btn-secondary">Cancel</a>
+            <div class="mt-4 d-flex flex-wrap gap-2">
+                <button type="submit" class="btn pms-transfer-edit-btn"><i class="fas fa-save me-1"></i>Save</button>
+                <a asp-action="Details" asp-route-id="@Model.TransferID" class="btn pms-transfer-edit-btn"><i class="fas fa-arrow-left me-1"></i>Back</a>
             </div>
         </form>
     </div>
 </div>
+
+<style>
+    .pms-transfer-edit-btn {
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+        min-width: 9.75rem;
+        width: 9.75rem;
+        height: 32px;
+        padding: 0.2rem 0.5rem !important;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        border-radius: 0 !important;
+        background-color: #1d3557 !important;
+        border: 1px solid #1d3557 !important;
+        color: #fff !important;
+        box-sizing: border-box;
+        line-height: 1.2;
+        text-decoration: none !important;
+        white-space: nowrap;
+    }
+    .pms-transfer-edit-btn:hover,
+    .pms-transfer-edit-btn:focus {
+        background-color: #152943 !important;
+        border-color: #152943 !important;
+        color: #fff !important;
+    }
+    .transfer-attachments-readonly .mb-3,
+    .transfer-attachments-readonly #btnScanSellerBiometric,
+    .transfer-attachments-readonly #btnScanBuyerBiometric,
+    .transfer-attachments-readonly #btnTestBiometric,
+    .transfer-attachments-readonly #openBuyerPhotoCameraBtn,
+    .transfer-attachments-readonly #openSellerPhotoCameraBtn {
+        display: none !important;
+    }
+</style>
 
 <!-- Live camera for Buyer / Seller photo attachments (Transfer Edit) -->
 <div class="modal fade" id="transferPhotoCameraModal" tabindex="-1" aria-labelledby="transferPhotoCameraModalLabel" aria-hidden="true">
@@ -553,6 +801,7 @@
 <script>
 (function() {
     var transferId = '@Model.TransferID';
+    var fieldsEditable = @(canEditFields ? "true" : "false");
     var token = document.querySelector('input[name="__RequestVerificationToken"]');
     function getToken() { return token ? token.value : ''; }
 
@@ -620,24 +869,30 @@
             var isImg = a.fileType && a.fileType.indexOf('image') === 0;
             var isPdf = a.fileType && a.fileType.indexOf('pdf') >= 0;
             var icon = isImg ? 'fa-image' : (isPdf ? 'fa-file-pdf text-danger' : 'fa-file');
+            var deleteBtn = fieldsEditable
+                ? '<button type="button" class="btn btn-sm btn-outline-danger delete-att" data-id="' + a.attachmentID + '"><i class="fas fa-trash"></i></button>'
+                : '';
             var row = '<div class="att-item">' +
                 '<span><i class="fas ' + icon + ' me-2"></i>' + (a.fileName || 'File') + '</span>' +
                 '<span>' +
                 '<a href="' + a.filePath + '" target="_blank" class="btn btn-sm btn-outline-primary me-1"><i class="fas fa-eye"></i></a>' +
-                '<button type="button" class="btn btn-sm btn-outline-danger delete-att" data-id="' + a.attachmentID + '"><i class="fas fa-trash"></i></button>' +
+                deleteBtn +
                 '</span></div>';
             $c.append(row);
         });
-        $c.find('.delete-att').on('click', function() {
-            var id = $(this).data('id');
-            if (!confirm('Delete this attachment?')) return;
-            $.post('@Url.Action("DeleteAttachment", "Transfer")', { __RequestVerificationToken: getToken(), attachmentId: id })
-                .done(function(r) { if (r.success) loadAttachments(); else alert(r.message); })
-                .fail(function() { alert('Error deleting'); });
-        });
+        if (fieldsEditable) {
+            $c.find('.delete-att').on('click', function() {
+                var id = $(this).data('id');
+                if (!confirm('Delete this attachment?')) return;
+                $.post('@Url.Action("DeleteAttachment", "Transfer")', { __RequestVerificationToken: getToken(), attachmentId: id })
+                    .done(function(r) { if (r.success) loadAttachments(); else alert(r.message); })
+                    .fail(function() { alert('Error deleting'); });
+            });
+        }
     }
 
     function upload(type, fileInputId, descId, btnId, requireTitle, fileOverride) {
+        if (!fieldsEditable) { alert('Attachments can only be changed while status is Created.'); return; }
         var fileInput = fileInputId ? document.getElementById(fileInputId) : null;
         var descInput = descId ? document.getElementById(descId) : null;
         var btn = document.getElementById(btnId);

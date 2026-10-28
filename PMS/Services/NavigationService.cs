@@ -63,7 +63,8 @@ public sealed class NavigationService : INavigationService
                 new NavigationMenuItemViewModel { Label = "Allotment", Controller = "Allotment", Action = "Index", IconClass = "fas fa-hand-holding me-2" },
                 new NavigationMenuItemViewModel { Label = "Duplicate File", Controller = "DuplicateFileTransfer", Action = "Index", IconClass = "fas fa-copy me-2" },
                 new NavigationMenuItemViewModel { Label = "Waiver", Controller = "Waiver", Action = "Index", IconClass = "fas fa-hand-holding-usd me-2" },
-                new NavigationMenuItemViewModel { Label = "Rental", Controller = "Rental", Action = "Index", IconClass = "fas fa-key me-2" }
+                new NavigationMenuItemViewModel { Label = "Rental", Controller = "Rental", Action = "Index", IconClass = "fas fa-key me-2" },
+                new NavigationMenuItemViewModel { Label = "Activity Log", Controller = "ActivityLog", Action = "ByCustomer", IconClass = "fas fa-history me-2" }
             }
         },
         new NavigationModuleViewModel

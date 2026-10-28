@@ -1,0 +1,366 @@
+@{
+    ViewData["Title"] = "Activity Log";
+    var customerNo = ViewBag.CustomerNo as string ?? "";
+    var customerName = ViewBag.CustomerName as string ?? "";
+    var customerFound = ViewBag.CustomerFound as bool? == true;
+    var searched = ViewBag.Searched as bool? == true;
+    var errorMessage = ViewBag.ErrorMessage as string;
+    var activityLogs = ViewBag.ActivityLogs as IEnumerable<PMS.Models.ActivityLog>
+        ?? Enumerable.Empty<PMS.Models.ActivityLog>();
+    var logCount = activityLogs.Count();
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h3 class="mb-0"><i class="fas fa-history me-2"></i>Activity Log</h3>
+    <a asp-controller="Home" asp-action="Workspace" class="btn btn-outline-secondary btn-sm">
+        <i class="fas fa-th-large me-2"></i>Workspace
+    </a>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-warning alert-dismissible fade show py-2" role="alert">
+        <i class="fas fa-exclamation-triangle me-2"></i>@errorMessage
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+<form method="get" asp-action="ByCustomer" class="pms-activity-log-search mb-3">
+    <div class="pms-activity-log-search-row">
+        <label for="customerNo" class="form-label fw-semibold mb-0">Customer No</label>
+        <input type="text"
+               id="customerNo"
+               name="customerNo"
+               class="form-control pms-activity-log-input"
+               value="@customerNo"
+               placeholder="e.g. ZA00010001"
+               autocomplete="off"
+               autofocus />
+        <button type="submit" class="btn pms-activity-log-btn">
+            <i class="fas fa-search me-1"></i>Search
+        </button>
+        <a asp-action="ByCustomer" class="btn pms-activity-log-btn">Clear</a>
+    </div>
+</form>
+
+@if (customerFound)
+{
+    <div class="card mb-3 border-0 bg-light">
+        <div class="card-body py-2 px-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <div class="d-flex align-items-center gap-2">
+                <i class="fas fa-user-circle fa-2x text-primary"></i>
+                <div>
+                    <div class="fw-bold">@(string.IsNullOrWhiteSpace(customerName) ? "—" : customerName)</div>
+                    <small class="text-muted">Customer No: <strong>@customerNo</strong></small>
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge rounded-pill bg-secondary">@logCount record@(logCount == 1 ? "" : "s")</span>
+                <a asp-controller="Customer" asp-action="Details" asp-route-id="@customerNo" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-external-link-alt me-1"></i>Open Customer
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="pms-activity-log-grid">
+        @if (activityLogs.Any())
+        {
+            <div class="table-responsive">
+                <table class="table mb-0" id="activityLogTable">
+                    <thead>
+                        <tr>
+                            <th>Customer No</th>
+                            <th>Date</th>
+                            <th>User</th>
+                            <th>Action</th>
+                            <th>Ref Type</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var log in activityLogs)
+                        {
+                            var rowCustomerNo = !string.IsNullOrWhiteSpace(log.RefID)
+                                ? log.RefID.Trim()
+                                : customerNo;
+                            <tr class="activity-log-row js-activity-log-row"
+                                title="Double-click to view details"
+                                data-created-at="@log.CreatedAt.ToString("MMM dd, yyyy HH:mm")"
+                                data-user="@(log.User?.FullName ?? log.UserID ?? "—")"
+                                data-action="@(log.Action ?? "—")"
+                                data-ref-type="@(log.RefType ?? "—")"
+                                data-ref-id="@(log.RefID ?? "—")"
+                                data-details="@(log.Details ?? "")">
+                                <td>@rowCustomerNo</td>
+                                <td class="text-muted small">@log.CreatedAt.ToString("MMM dd, yyyy HH:mm")</td>
+                                <td>@(log.User?.FullName ?? log.UserID ?? "—")</td>
+                                <td>
+                                    <i class="fas fa-circle-notch me-2" style="font-size: 8px;"></i>
+                                    @(log.Action ?? "—")
+                                </td>
+                                <td><span class="badge bg-secondary">@(log.RefType ?? "—")</span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
+                <p class="mb-0">No activity logs found for this customer.</p>
+            </div>
+        }
+    </div>
+}
+else if (searched)
+{
+    <div class="text-center text-muted py-4">
+        <i class="fas fa-search fa-2x mb-2 d-block"></i>
+        <p class="mb-0">Enter a valid Customer No and search to view activity.</p>
+    </div>
+}
+else
+{
+    <div class="text-center text-muted py-4">
+        <i class="fas fa-history fa-2x mb-2 d-block"></i>
+        <p class="mb-0">Enter a Customer No above to load activity log records.</p>
+    </div>
+}
+
+<div class="modal fade" id="activityLogDetailsModal" tabindex="-1" aria-labelledby="activityLogDetailsModalLabel" aria-hidden="true" data-bs-backdrop="false">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="activityLogDetailsModalLabel">
+                    <i class="fas fa-history me-2"></i>Customer History
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pms-activity-log-modal-body">
+                <div class="pms-activity-log-modal-row">
+                    <div class="pms-activity-log-modal-label">Date</div>
+                    <div class="pms-activity-log-modal-value" id="logModalDate">—</div>
+                </div>
+                <div class="pms-activity-log-modal-row">
+                    <div class="pms-activity-log-modal-label">User</div>
+                    <div class="pms-activity-log-modal-value" id="logModalUser">—</div>
+                </div>
+                <div class="pms-activity-log-modal-row">
+                    <div class="pms-activity-log-modal-label">Ref Type</div>
+                    <div class="pms-activity-log-modal-value" id="logModalRefType">—</div>
+                </div>
+                <div class="pms-activity-log-modal-row">
+                    <div class="pms-activity-log-modal-label">Ref ID</div>
+                    <div class="pms-activity-log-modal-value" id="logModalRefId">—</div>
+                </div>
+                <div class="pms-activity-log-modal-row">
+                    <div class="pms-activity-log-modal-label">Action</div>
+                    <div class="pms-activity-log-modal-value" id="logModalAction">—</div>
+                </div>
+                <div class="pms-activity-log-modal-row pms-activity-log-modal-row--last pms-activity-log-modal-row--details">
+                    <div class="pms-activity-log-modal-label">Details</div>
+                    <pre class="pms-activity-log-modal-value pms-activity-log-modal-details mb-0" id="logModalDetails">—</pre>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .pms-activity-log-search {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0;
+    }
+
+    .pms-activity-log-search-row {
+        display: flex;
+        flex-wrap: nowrap;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .pms-activity-log-search-row .form-label {
+        white-space: nowrap;
+        margin-bottom: 0;
+        flex: 0 0 auto;
+    }
+
+    .pms-activity-log-input {
+        border-radius: 0 !important;
+        flex: 1 1 auto;
+        min-width: 12rem;
+        max-width: 22rem;
+        height: 32px;
+        min-height: 32px;
+        padding-top: 0.25rem;
+        padding-bottom: 0.25rem;
+    }
+
+    .pms-activity-log-btn {
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+        min-width: 6.5rem;
+        width: 6.5rem;
+        height: 32px;
+        min-height: 32px;
+        padding: 0.2rem 0.75rem !important;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        border-radius: 0 !important;
+        background-color: #1d3557 !important;
+        border: 1px solid #1d3557 !important;
+        color: #fff !important;
+        box-sizing: border-box;
+        line-height: 1.2;
+        text-decoration: none !important;
+        flex: 0 0 auto;
+    }
+
+    .pms-activity-log-btn:hover,
+    .pms-activity-log-btn:focus {
+        background-color: #152943 !important;
+        border-color: #152943 !important;
+        color: #fff !important;
+    }
+
+    .pms-activity-log-grid {
+        background: #fff;
+        border: none;
+        box-shadow: none;
+    }
+
+    .pms-activity-log-grid #activityLogTable {
+        background: #fff;
+        border-collapse: separate;
+        border-spacing: 0;
+        margin-bottom: 0;
+    }
+
+    .pms-activity-log-grid #activityLogTable thead th {
+        background: #fff;
+        border-top: none !important;
+        border-left: none !important;
+        border-right: none !important;
+        border-bottom: 1px solid #2563eb !important;
+        vertical-align: middle;
+    }
+
+    .pms-activity-log-grid #activityLogTable tbody td {
+        background: #fff;
+        border-top: none !important;
+        border-left: none !important;
+        border-right: none !important;
+        border-bottom: 1px solid #2563eb !important;
+        vertical-align: middle;
+    }
+
+    .pms-activity-log-grid #activityLogTable tbody tr {
+        cursor: pointer;
+        background: #fff;
+    }
+
+    .pms-activity-log-grid #activityLogTable tbody tr:hover td {
+        background: #f8fafc;
+    }
+
+    .pms-activity-log-modal-body {
+        background: #f1f5f9;
+        padding: 0.65rem 1rem;
+    }
+
+    .pms-activity-log-modal-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        padding: 0.4rem 0;
+        border-bottom: 1px solid #cbd5e1;
+    }
+
+    .pms-activity-log-modal-row--last {
+        border-bottom: none;
+        padding-bottom: 0.15rem;
+    }
+
+    .pms-activity-log-modal-row--details {
+        align-items: flex-start;
+    }
+
+    .pms-activity-log-modal-label {
+        flex: 0 0 5.5rem;
+        color: #64748b;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        line-height: 1.4;
+        padding-top: 0.05rem;
+    }
+
+    .pms-activity-log-modal-value {
+        flex: 1 1 auto;
+        min-width: 0;
+        color: #0f172a;
+        font-size: 0.875rem;
+        line-height: 1.4;
+        background: none;
+        border: none;
+        padding: 0;
+        box-shadow: none;
+    }
+
+    .pms-activity-log-modal-details {
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 220px;
+        overflow: auto;
+        font-family: inherit;
+        font-size: 0.875rem;
+    }
+
+    @@media (max-width: 767.98px) {
+        .pms-activity-log-search-row {
+            flex-wrap: wrap;
+        }
+
+        .pms-activity-log-input {
+            max-width: none;
+            width: 100%;
+        }
+    }
+</style>
+
+@section Scripts {
+<script>
+    (function () {
+        var modalEl = document.getElementById('activityLogDetailsModal');
+        var activityLogModal = modalEl && window.bootstrap ? new bootstrap.Modal(modalEl) : null;
+
+        function formatLogDetails(details) {
+            if (!details) return '—';
+            try {
+                return JSON.stringify(JSON.parse(details), null, 2);
+            } catch (e) {
+                return details;
+            }
+        }
+
+        $(document).on('dblclick', '.js-activity-log-row', function () {
+            if (!activityLogModal) return;
+            var $row = $(this);
+            $('#logModalDate').text($row.data('created-at') || '—');
+            $('#logModalUser').text($row.data('user') || '—');
+            $('#logModalAction').text($row.data('action') || '—');
+            $('#logModalRefType').text($row.data('ref-type') || '—');
+            $('#logModalRefId').text($row.data('ref-id') || '—');
+            $('#logModalDetails').text(formatLogDetails($row.data('details')));
+            activityLogModal.show();
+        });
+    })();
+</script>
+}

@@ -164,6 +164,56 @@ OFFSET {offset} ROWS FETCH NEXT {pageSize} ROWS ONLY";
             }
         }
 
+        /// <summary>
+        /// Customer Activity Log lookup — same records as Customer Details → Activity Log tab
+        /// (ActivityLog where RefID = CustomerID).
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> ByCustomer(string? customerNo)
+        {
+            var denied = await EnsurePermissionAsync("Read");
+            if (denied != null) return denied;
+
+            var trimmed = (customerNo ?? string.Empty).Trim();
+            ViewBag.CustomerNo = trimmed;
+            ViewBag.CustomerFound = false;
+            ViewBag.CustomerName = "";
+            ViewBag.Searched = !string.IsNullOrEmpty(trimmed);
+
+            if (string.IsNullOrEmpty(trimmed))
+            {
+                ViewBag.ActivityLogs = new List<ActivityLog>();
+                return View();
+            }
+
+            var customer = await _context.Customers
+                .AsNoTracking()
+                .Where(c => c.CustomerID != null && c.CustomerID.Trim() == trimmed)
+                .Select(c => new { c.CustomerID, c.FullName })
+                .FirstOrDefaultAsync();
+
+            if (customer == null)
+            {
+                ViewBag.ActivityLogs = new List<ActivityLog>();
+                ViewBag.ErrorMessage = $"No customer found with Customer No '{trimmed}'.";
+                return View();
+            }
+
+            ViewBag.CustomerFound = true;
+            ViewBag.CustomerNo = customer.CustomerID?.Trim() ?? trimmed;
+            ViewBag.CustomerName = customer.FullName ?? "";
+
+            var activityLogs = await _context.ActivityLogs
+                .AsNoTracking()
+                .Include(a => a.User)
+                .Where(a => a.RefID != null && a.RefID.Trim() == (customer.CustomerID ?? "").Trim())
+                .OrderByDescending(a => a.CreatedAt)
+                .ToListAsync();
+
+            ViewBag.ActivityLogs = activityLogs;
+            return View();
+        }
+
         /// <summary>Blocking logs list with search filters (CustomerID, UserID, date range, NewStatus).</summary>
         [HttpGet]
         public async Task<IActionResult> BlockingLogs(string? customerId, string? userId, DateTime? dateFrom, DateTime? dateTo, string? newStatus, int page = 1, int pageSize = 25)

@@ -622,6 +622,14 @@
     }
 }
 
+/* Customer listing rows — slightly shorter, with a visible bottom rule */
+.pms-customer-listing #customersTable tbody td {
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+    border-bottom: 1px solid #94a3b8 !important;
+    vertical-align: middle;
+}
+
 /* Customer Operations menu — white panel so it stands out from the gray page surface */
 .pms-customer-listing .pms-customer-operations-dropdown .dropdown-menu {
     background: #ffffff !important;

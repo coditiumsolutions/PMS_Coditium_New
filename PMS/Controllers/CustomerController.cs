@@ -905,9 +905,9 @@ namespace PMS.Controllers
             }
         }
 
-        // POST: Get Available Properties for Customer (matching project and size)
+        // POST: Get Available Properties for Customer (Available + matching project, sub-project, size)
         [HttpPost]
-        public async Task<IActionResult> GetAvailablePropertiesForCustomer(string customerID, string? projectID = null, string? registeredSize = null, int? dealerID = null)
+        public async Task<IActionResult> GetAvailablePropertiesForCustomer(string customerID, string? projectID = null, string? registeredSize = null, string? subProject = null, int? dealerID = null)
         {
             var denied = await EnsurePermissionAsync("Read");
             if (denied != null) return denied;
@@ -915,6 +915,8 @@ namespace PMS.Controllers
             {
                 var customer = await _context.Customers
                     .Include(c => c.Project)
+                    .Include(c => c.PaymentPlan)
+                        .ThenInclude(pp => pp!.Project)
                     .Include(c => c.Allotments)
                     .FirstOrDefaultAsync(c => c.CustomerID == customerID);
 
@@ -923,8 +925,15 @@ namespace PMS.Controllers
                     return Json(new { success = false, message = "Customer not found" });
                 }
 
-                var projectIdToUse = !string.IsNullOrWhiteSpace(projectID) ? projectID : customer.ProjectID;
-                var registeredSizeToUse = !string.IsNullOrWhiteSpace(registeredSize) ? registeredSize : customer.RegisteredSize;
+                var projectIdToUse = !string.IsNullOrWhiteSpace(projectID)
+                    ? projectID.Trim()
+                    : (customer.PaymentPlan?.ProjectID ?? customer.ProjectID);
+                var registeredSizeToUse = !string.IsNullOrWhiteSpace(registeredSize)
+                    ? registeredSize.Trim()
+                    : (customer.RegisteredSize ?? "").Trim();
+                var subProjectToUse = !string.IsNullOrWhiteSpace(subProject)
+                    ? subProject.Trim()
+                    : (customer.SubProject ?? "").Trim();
                 var dealerIdToUse = dealerID ?? customer.DealerID;
 
                 if (string.IsNullOrEmpty(projectIdToUse))
@@ -937,84 +946,57 @@ namespace PMS.Controllers
                     return Json(new { success = false, message = "Customer does not have a registered size" });
                 }
 
-                // Resolve project for display
-                var projectEntity = customer.Project;
+                var projectEntity = customer.PaymentPlan?.Project ?? customer.Project;
                 if ((projectEntity == null || projectEntity.ProjectID != projectIdToUse) && !string.IsNullOrEmpty(projectIdToUse))
                 {
                     projectEntity = await _context.Projects.FirstOrDefaultAsync(p => p.ProjectID == projectIdToUse);
                 }
 
-                var currentPropertyId = customer.Allotments?
-                    .OrderByDescending(a => a.AllotmentDate)
-                    .Select(a => a.PropertyID)
-                    .FirstOrDefault();
-
-                var availableProperties = await _context.Properties
+                // Not allotted + same project + same requested size; match Sub Project when customer has one
+                var query = _context.Properties
+                    .AsNoTracking()
                     .Where(p => p.Status == "Available"
                         && p.ProjectID == projectIdToUse
                         && p.Size == registeredSizeToUse
-                        && (!dealerIdToUse.HasValue ? true : p.DealerID == dealerIdToUse))
+                        && !p.Allotments.Any(a => a.WorkFlowStatus == null
+                            || a.WorkFlowStatus != "Declined"));
+
+                if (!string.IsNullOrEmpty(subProjectToUse))
+                {
+                    query = query.Where(p => p.SubProject != null && p.SubProject.Trim() == subProjectToUse);
+                }
+
+                if (dealerIdToUse.HasValue)
+                {
+                    query = query.Where(p => p.DealerID == dealerIdToUse);
+                }
+
+                var availableProperties = await query
                     .OrderBy(p => p.PlotNo)
                     .Select(p => new
                     {
                         propertyID = p.PropertyID,
                         plotNo = p.PlotNo,
                         block = p.Block,
+                        floor = p.Floor,
                         size = p.Size,
                         propertyType = p.PropertyType,
                         street = p.Street,
                         plotType = p.PlotType,
-                        isCurrent = false
+                        subProject = p.SubProject,
+                        projectName = p.Project != null ? p.Project.ProjectName : null,
+                        status = p.Status
                     })
                     .ToListAsync();
-
-                if (!string.IsNullOrEmpty(currentPropertyId))
-                {
-                    var currentProperty = await _context.Properties
-                        .Where(p => p.PropertyID == currentPropertyId)
-                        .Select(p => new
-                        {
-                            propertyID = p.PropertyID,
-                            plotNo = p.PlotNo,
-                            block = p.Block,
-                            propertySize = p.Size,
-                            propertyType = p.PropertyType,
-                            street = p.Street,
-                            plotType = p.PlotType,
-                            projectID = p.ProjectID,
-                            DealerID = p.DealerID
-                        })
-                        .FirstOrDefaultAsync();
-
-                    if (currentProperty != null)
-                    {
-                        var matchesFilters = currentProperty.projectID == projectIdToUse &&
-                                             currentProperty.propertySize == registeredSizeToUse &&
-                                             (!dealerIdToUse.HasValue ? true : currentProperty.DealerID == dealerIdToUse);
-
-                        if (matchesFilters && !availableProperties.Any(p => p.propertyID == currentProperty.propertyID))
-                        {
-                            availableProperties.Insert(0, new
-                            {
-                                propertyID = currentProperty.propertyID,
-                                plotNo = currentProperty.plotNo,
-                                block = currentProperty.block,
-                                size = currentProperty.propertySize,
-                                propertyType = currentProperty.propertyType,
-                                street = currentProperty.street,
-                                plotType = currentProperty.plotType,
-                                isCurrent = true
-                            });
-                        }
-                    }
-                }
 
                 return Json(new
                 {
                     success = true,
                     properties = availableProperties,
-                    projectName = projectEntity?.ProjectName ?? customer.Project?.ProjectName,
-                    registeredSize = registeredSizeToUse
+                    projectName = projectEntity?.ProjectName ?? projectIdToUse,
+                    subProject = string.IsNullOrEmpty(subProjectToUse) ? null : subProjectToUse,
+                    registeredSize = registeredSizeToUse,
+                    count = availableProperties.Count
                 });
             }
             catch (Exception ex)
@@ -1262,11 +1244,16 @@ namespace PMS.Controllers
             var customer = await _context.Customers
                 .Include(c => c.Registration)
                 .Include(c => c.PaymentPlan)
-                    .ThenInclude(pp => pp.PaymentSchedules)
+                    .ThenInclude(pp => pp!.PaymentSchedules)
                         .ThenInclude(ps => ps.Payments)
+                .Include(c => c.PaymentPlan)
+                    .ThenInclude(pp => pp!.Project)
                 .Include(c => c.CustomerLogs)
                 .Include(c => c.Allotments)
-                    .ThenInclude(a => a.Property)
+                    .ThenInclude(a => a.Property!)
+                        .ThenInclude(p => p.Project)
+                .Include(c => c.Allotments)
+                    .ThenInclude(a => a.AllottedByUser)
                 .Include(c => c.Transfers)
                 .Include(c => c.Dealer)
                 .FirstOrDefaultAsync(c => c.CustomerID == id);
@@ -1275,14 +1262,6 @@ namespace PMS.Controllers
             {
                 return NotFound();
             }
-
-            var activityLogs = await _context.ActivityLogs
-                .AsNoTracking()
-                .Include(a => a.User)
-                .Where(a => a.RefID != null && a.RefID.Trim() == (customer.CustomerID ?? "").Trim())
-                .OrderByDescending(a => a.CreatedAt)
-                .ToListAsync();
-            ViewBag.ActivityLogs = activityLogs;
 
             return View(customer);
         }

@@ -210,19 +210,6 @@ namespace PMS.Controllers
             {
                 ModelState.AddModelError("CustomerID", "Customer ID not found.");
             }
-            else
-            {
-                var today = DateTime.Today;
-                var hasActiveNDC = await _context.NDCs
-                    .AnyAsync(n => n.CustomerID == model.CustomerID.Trim()
-                        && n.NDCExpiryDate.HasValue
-                        && n.IssuedDate.Date <= today
-                        && n.NDCExpiryDate.Value.Date >= today);
-                if (!hasActiveNDC)
-                {
-                    ModelState.AddModelError("CustomerID", "No active NDC found for this customer. Transfer requires an NDC where current date is between Issue Date and Expiry Date.");
-                }
-            }
 
             ValidateBuyerInformation(model);
 
@@ -664,6 +651,7 @@ namespace PMS.Controllers
             }
 
             ViewBag.WorkflowStatuses = new[] { WorkflowCreated, WorkflowAtAccounts, WorkflowAtTransferApproval, WorkflowApproved };
+            ViewBag.FieldsEditable = IsCreatedWorkflow(transfer.WorkFlowStatus);
             SetCitiesAndCountriesViewBag();
             SetNationalitiesViewBag();
             SetPaymentMethodsViewBag();
@@ -682,158 +670,238 @@ namespace PMS.Controllers
             model.TransferID = NormalizeId(model.TransferID);
             if (string.IsNullOrEmpty(id) || id != model.TransferID) return NotFound();
 
-                var existing = await _context.Transfers
-                    .Include(t => t.Customer)
-                    .FirstOrDefaultAsync(t => t.TransferID == id);
+            var existing = await _context.Transfers
+                .Include(t => t.Customer)
+                .FirstOrDefaultAsync(t => t.TransferID == id);
 
-                if (existing == null) return NotFound();
+            if (existing == null) return NotFound();
 
-                if (existing.WorkFlowStatus == WorkflowApproved)
-                {
-                    TempData["ErrorMessage"] = "This transfer is approved and cannot be edited.";
-                    return RedirectToAction(nameof(Details), new { id });
-                }
+            if (existing.WorkFlowStatus == WorkflowApproved)
+            {
+                TempData["ErrorMessage"] = "This transfer is approved and cannot be edited.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
 
-                if (!model.BuyerDOB.HasValue)
-                {
-                    model.BuyerDOB = new DateTime(1990, 1, 1);
-                }
+            var fieldsEditable = IsCreatedWorkflow(existing.WorkFlowStatus);
+            ViewBag.FieldsEditable = fieldsEditable;
 
-                ValidateBuyerInformation(model);
+            void PrepareEditViewBags()
+            {
+                ViewBag.WorkflowStatuses = new[] { WorkflowCreated, WorkflowAtAccounts, WorkflowAtTransferApproval, WorkflowApproved };
+                ViewBag.FieldsEditable = fieldsEditable;
+                SetCitiesAndCountriesViewBag();
+                SetNationalitiesViewBag();
+                SetPaymentMethodsViewBag();
+                SetBanksViewBag();
+            }
 
+            // After status leaves Created, only Workflow Status may change.
+            if (!fieldsEditable)
+            {
                 if (string.Equals(model.WorkFlowStatus, WorkflowApproved, StringComparison.OrdinalIgnoreCase))
                 {
-                    var due = model.TransferFeeDue ?? 0;
-                    var paid = model.TransferFeePaid ?? 0;
+                    var due = existing.TransferFeeDue ?? 0;
+                    var paid = existing.TransferFeePaid ?? 0;
                     if (Math.Abs(due - paid) > 0.001)
                     {
                         ModelState.AddModelError("", "When Workflow Status is Approved, Transfer Fee Due must equal Transfer Fee Paid.");
-                        ViewBag.WorkflowStatuses = new[] { WorkflowCreated, WorkflowAtAccounts, WorkflowAtTransferApproval, WorkflowApproved };
-                        SetCitiesAndCountriesViewBag();
-                        SetNationalitiesViewBag();
-                        SetPaymentMethodsViewBag();
-                        SetBanksViewBag();
+                        model.WorkFlowStatus = existing.WorkFlowStatus;
+                        // Keep displayed data from the stored transfer.
+                        CopyTransferForDisplay(existing, model);
+                        PrepareEditViewBags();
                         return View(model);
                     }
                 }
 
-                if (!ModelState.IsValid)
-                {
-                    ViewBag.WorkflowStatuses = new[] { WorkflowCreated, WorkflowAtAccounts, WorkflowAtTransferApproval, WorkflowApproved };
-                    SetCitiesAndCountriesViewBag();
-                    SetNationalitiesViewBag();
-                    SetPaymentMethodsViewBag();
-                    SetBanksViewBag();
-                    return View(model);
-                }
-
                 existing.WorkFlowStatus = model.WorkFlowStatus;
-                existing.SellerName = model.SellerName;
-                existing.SellerFatherName = model.SellerFatherName;
-                existing.SellerCNIC = model.SellerCNIC;
-                existing.SellerContact = model.SellerContact;
-                existing.SellerAddress = model.SellerAddress;
-                existing.BuyerName = model.BuyerName;
-                existing.BuyerFatherName = model.BuyerFatherName;
-                existing.BuyerCNIC = model.BuyerCNIC;
-                existing.BuyerPassportNo = model.BuyerPassportNo;
-                existing.BuyerDOB = model.BuyerDOB;
-                existing.BuyerGender = model.BuyerGender;
-                existing.BuyerNationality = model.BuyerNationality;
-                existing.BuyerEmail = model.BuyerEmail;
-                existing.BuyerPhone = model.BuyerPhone;
-                existing.BuyerMobile = model.BuyerMobile;
-                existing.BuyerMobile2 = model.BuyerMobile2;
-                existing.BuyerContact = model.BuyerPhone;
-                existing.BuyerAddress = model.BuyerMailingAddress;
-                existing.BuyerMailingAddress = model.BuyerMailingAddress;
-                existing.BuyerPermanentAddress = model.BuyerPermanentAddress;
-                existing.BuyerCity = model.BuyerCity;
-                existing.BuyerCountry = model.BuyerCountry;
-                existing.BuyerAttachments = model.BuyerAttachments;
-                existing.SellerAttachments = model.SellerAttachments;
-                existing.SellerBiometric = model.SellerBiometric;
-                existing.BuyerBiometric = model.BuyerBiometric;
-                existing.TransferFeeDue = model.TransferFeeDue;
-                existing.TransferFeePaid = model.TransferFeePaid;
-                existing.PaymentDate = model.PaymentDate;
-                existing.PaymentMode = model.PaymentMode;
-                existing.PaymentChallanNo = model.PaymentChallanNo;
-                existing.Details = model.Details;
-                existing.CROComments = model.CROComments;
-                existing.AccountsComments = model.AccountsComments;
-                existing.TransferComments = model.TransferComments;
-
-                if (model.WorkFlowStatus == WorkflowApproved)
-                {
-                    var customer = existing.Customer;
-                    if (customer != null)
-                    {
-                        customer.FullName = model.BuyerName ?? customer.FullName;
-                        customer.FatherName = model.BuyerFatherName ?? customer.FatherName;
-                        customer.CNIC = model.BuyerCNIC ?? customer.CNIC;
-                        customer.PassportNo = model.BuyerPassportNo ?? customer.PassportNo;
-                        customer.DOB = model.BuyerDOB ?? customer.DOB;
-                        customer.Gender = model.BuyerGender ?? customer.Gender;
-                        customer.Nationality = model.BuyerNationality ?? customer.Nationality;
-                        customer.Email = model.BuyerEmail ?? customer.Email;
-                        customer.Phone = model.BuyerPhone ?? customer.Phone;
-                        customer.MobileNo = model.BuyerMobile ?? customer.MobileNo;
-                        customer.MobileNo2 = model.BuyerMobile2 ?? customer.MobileNo2;
-                        customer.MailingAddress = model.BuyerMailingAddress ?? customer.MailingAddress;
-                        customer.PermanentAddress = model.BuyerPermanentAddress ?? customer.PermanentAddress;
-                        customer.City = model.BuyerCity ?? customer.City;
-                        customer.Country = model.BuyerCountry ?? customer.Country;
-                    }
-
-                    var transferJointOwners = await _context.TransferJointOwners
-                        .Where(j => j.TransferID == existing.TransferID && j.CustomerID == existing.CustomerID)
-                        .ToListAsync();
-
-                    var oldJointOwners = await _context.JointOwners
-                        .Where(j => j.CustomerID == existing.CustomerID)
-                        .ToListAsync();
-                    if (oldJointOwners.Count > 0)
-                    {
-                        _context.JointOwners.RemoveRange(oldJointOwners);
-                    }
-
-                    var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                    if (transferJointOwners.Count > 0)
-                    {
-                        var newJointOwners = transferJointOwners.Select(j => new JointOwner
-                        {
-                            Id = Guid.NewGuid().ToString("N")[..10].ToUpperInvariant(),
-                            CustomerID = j.CustomerID,
-                            JointOwnerName = j.JointOwnerName,
-                            FatherName = j.FatherName,
-                            CNIC = j.CNIC,
-                            Contact = j.Contact,
-                            Address = j.Address,
-                            Percentage = j.Percentage,
-                            CreatedAt = DateTime.Now,
-                            CreatedBy = userId,
-                            ModifiedBy = userId,
-                            Details = j.Details
-                        }).ToList();
-                        _context.JointOwners.AddRange(newJointOwners);
-                    }
-
-                    if (!string.IsNullOrEmpty(userId))
-                    {
-                        _context.ActivityLogs.Add(new ActivityLog
-                        {
-                            UserID = userId,
-                            Action = $"Transfer approved: replaced customer joint owners (deleted {oldJointOwners.Count}, added {transferJointOwners.Count}).",
-                            RefType = "Transfer",
-                        RefID = SafeRefId(existing.TransferID),
-                            CreatedAt = DateTime.Now
-                        });
-                    }
-                }
+                if (string.Equals(existing.WorkFlowStatus, WorkflowApproved, StringComparison.OrdinalIgnoreCase))
+                    await ApplyApprovalSideEffectsAsync(existing);
 
                 await _context.SaveChangesAsync();
                 return RedirectToAction(nameof(Details), new { id });
+            }
+
+            if (!model.BuyerDOB.HasValue)
+            {
+                model.BuyerDOB = new DateTime(1990, 1, 1);
+            }
+
+            ValidateBuyerInformation(model);
+
+            if (string.Equals(model.WorkFlowStatus, WorkflowApproved, StringComparison.OrdinalIgnoreCase))
+            {
+                var due = model.TransferFeeDue ?? 0;
+                var paid = model.TransferFeePaid ?? 0;
+                if (Math.Abs(due - paid) > 0.001)
+                {
+                    ModelState.AddModelError("", "When Workflow Status is Approved, Transfer Fee Due must equal Transfer Fee Paid.");
+                    PrepareEditViewBags();
+                    return View(model);
+                }
+            }
+
+            if (!ModelState.IsValid)
+            {
+                PrepareEditViewBags();
+                return View(model);
+            }
+
+            existing.WorkFlowStatus = model.WorkFlowStatus;
+            existing.SellerName = model.SellerName;
+            existing.SellerFatherName = model.SellerFatherName;
+            existing.SellerCNIC = model.SellerCNIC;
+            existing.SellerContact = model.SellerContact;
+            existing.SellerAddress = model.SellerAddress;
+            existing.BuyerName = model.BuyerName;
+            existing.BuyerFatherName = model.BuyerFatherName;
+            existing.BuyerCNIC = model.BuyerCNIC;
+            existing.BuyerPassportNo = model.BuyerPassportNo;
+            existing.BuyerDOB = model.BuyerDOB;
+            existing.BuyerGender = model.BuyerGender;
+            existing.BuyerNationality = model.BuyerNationality;
+            existing.BuyerEmail = model.BuyerEmail;
+            existing.BuyerPhone = model.BuyerPhone;
+            existing.BuyerMobile = model.BuyerMobile;
+            existing.BuyerMobile2 = model.BuyerMobile2;
+            existing.BuyerContact = model.BuyerPhone;
+            existing.BuyerAddress = model.BuyerMailingAddress;
+            existing.BuyerMailingAddress = model.BuyerMailingAddress;
+            existing.BuyerPermanentAddress = model.BuyerPermanentAddress;
+            existing.BuyerCity = model.BuyerCity;
+            existing.BuyerCountry = model.BuyerCountry;
+            existing.BuyerAttachments = model.BuyerAttachments;
+            existing.SellerAttachments = model.SellerAttachments;
+            existing.SellerBiometric = model.SellerBiometric;
+            existing.BuyerBiometric = model.BuyerBiometric;
+            existing.TransferFeeDue = model.TransferFeeDue;
+            existing.TransferFeePaid = model.TransferFeePaid;
+            existing.PaymentDate = model.PaymentDate;
+            existing.PaymentMode = model.PaymentMode;
+            existing.PaymentChallanNo = model.PaymentChallanNo;
+            existing.BankName = model.BankName;
+            existing.PaymentDetails = model.PaymentDetails;
+            existing.Details = model.Details;
+            existing.CROComments = model.CROComments;
+            existing.AccountsComments = model.AccountsComments;
+            existing.TransferComments = model.TransferComments;
+
+            if (string.Equals(model.WorkFlowStatus, WorkflowApproved, StringComparison.OrdinalIgnoreCase))
+                await ApplyApprovalSideEffectsAsync(existing);
+
+            await _context.SaveChangesAsync();
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        private static bool IsCreatedWorkflow(string? status) =>
+            string.Equals(status?.Trim(), WorkflowCreated, StringComparison.OrdinalIgnoreCase);
+
+        private static void CopyTransferForDisplay(Transfer source, Transfer target)
+        {
+            target.CustomerID = source.CustomerID;
+            target.CreatedAt = source.CreatedAt;
+            target.SellerName = source.SellerName;
+            target.SellerFatherName = source.SellerFatherName;
+            target.SellerCNIC = source.SellerCNIC;
+            target.SellerContact = source.SellerContact;
+            target.SellerAddress = source.SellerAddress;
+            target.BuyerName = source.BuyerName;
+            target.BuyerFatherName = source.BuyerFatherName;
+            target.BuyerCNIC = source.BuyerCNIC;
+            target.BuyerPassportNo = source.BuyerPassportNo;
+            target.BuyerDOB = source.BuyerDOB;
+            target.BuyerGender = source.BuyerGender;
+            target.BuyerNationality = source.BuyerNationality;
+            target.BuyerEmail = source.BuyerEmail;
+            target.BuyerPhone = source.BuyerPhone;
+            target.BuyerMobile = source.BuyerMobile;
+            target.BuyerMobile2 = source.BuyerMobile2;
+            target.BuyerMailingAddress = source.BuyerMailingAddress;
+            target.BuyerPermanentAddress = source.BuyerPermanentAddress;
+            target.BuyerCity = source.BuyerCity;
+            target.BuyerCountry = source.BuyerCountry;
+            target.TransferFeeDue = source.TransferFeeDue;
+            target.TransferFeePaid = source.TransferFeePaid;
+            target.PaymentDate = source.PaymentDate;
+            target.PaymentMode = source.PaymentMode;
+            target.PaymentChallanNo = source.PaymentChallanNo;
+            target.BankName = source.BankName;
+            target.PaymentDetails = source.PaymentDetails;
+            target.Details = source.Details;
+            target.CROComments = source.CROComments;
+            target.AccountsComments = source.AccountsComments;
+            target.TransferComments = source.TransferComments;
+            target.SellerAttachments = source.SellerAttachments;
+            target.BuyerAttachments = source.BuyerAttachments;
+            target.SellerBiometric = source.SellerBiometric;
+            target.BuyerBiometric = source.BuyerBiometric;
+        }
+
+        private async Task ApplyApprovalSideEffectsAsync(Transfer existing)
+        {
+            var customer = existing.Customer;
+            if (customer != null)
+            {
+                customer.FullName = existing.BuyerName ?? customer.FullName;
+                customer.FatherName = existing.BuyerFatherName ?? customer.FatherName;
+                customer.CNIC = existing.BuyerCNIC ?? customer.CNIC;
+                customer.PassportNo = existing.BuyerPassportNo ?? customer.PassportNo;
+                customer.DOB = existing.BuyerDOB ?? customer.DOB;
+                customer.Gender = existing.BuyerGender ?? customer.Gender;
+                customer.Nationality = existing.BuyerNationality ?? customer.Nationality;
+                customer.Email = existing.BuyerEmail ?? customer.Email;
+                customer.Phone = existing.BuyerPhone ?? customer.Phone;
+                customer.MobileNo = existing.BuyerMobile ?? customer.MobileNo;
+                customer.MobileNo2 = existing.BuyerMobile2 ?? customer.MobileNo2;
+                customer.MailingAddress = existing.BuyerMailingAddress ?? customer.MailingAddress;
+                customer.PermanentAddress = existing.BuyerPermanentAddress ?? customer.PermanentAddress;
+                customer.City = existing.BuyerCity ?? customer.City;
+                customer.Country = existing.BuyerCountry ?? customer.Country;
+            }
+
+            var transferJointOwners = await _context.TransferJointOwners
+                .Where(j => j.TransferID == existing.TransferID && j.CustomerID == existing.CustomerID)
+                .ToListAsync();
+
+            var oldJointOwners = await _context.JointOwners
+                .Where(j => j.CustomerID == existing.CustomerID)
+                .ToListAsync();
+            if (oldJointOwners.Count > 0)
+            {
+                _context.JointOwners.RemoveRange(oldJointOwners);
+            }
+
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (transferJointOwners.Count > 0)
+            {
+                var newJointOwners = transferJointOwners.Select(j => new JointOwner
+                {
+                    Id = Guid.NewGuid().ToString("N")[..10].ToUpperInvariant(),
+                    CustomerID = j.CustomerID,
+                    JointOwnerName = j.JointOwnerName,
+                    FatherName = j.FatherName,
+                    CNIC = j.CNIC,
+                    Contact = j.Contact,
+                    Address = j.Address,
+                    Percentage = j.Percentage,
+                    CreatedAt = DateTime.Now,
+                    CreatedBy = userId,
+                    ModifiedBy = userId,
+                    Details = j.Details
+                }).ToList();
+                _context.JointOwners.AddRange(newJointOwners);
+            }
+
+            if (!string.IsNullOrEmpty(userId))
+            {
+                _context.ActivityLogs.Add(new ActivityLog
+                {
+                    UserID = userId,
+                    Action = $"Transfer approved: replaced customer joint owners (deleted {oldJointOwners.Count}, added {transferJointOwners.Count}).",
+                    RefType = "Transfer",
+                    RefID = SafeRefId(existing.TransferID),
+                    CreatedAt = DateTime.Now
+                });
+            }
         }
 
         [HttpPost]

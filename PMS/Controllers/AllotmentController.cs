@@ -350,10 +350,14 @@ namespace PMS.Controllers
         [HttpPost]
         [IgnoreAntiforgeryToken]
         public async Task<IActionResult> CreateAllotmentFromCustomer(string customerID, string propertyID, 
-            string allotmentType, string comments)
+            string allotmentType, string? comments = null)
         {
             try
             {
+                // Comments are optional at allotment creation
+                ModelState.Remove(nameof(comments));
+                ModelState.Remove("Comments");
+
                 // Validate inputs
                 if (string.IsNullOrEmpty(customerID) || string.IsNullOrEmpty(propertyID))
                 {
@@ -448,17 +452,23 @@ namespace PMS.Controllers
                     AllotmentDate = DateTime.Now,
                     AllottmentType = allotmentType ?? "Regular",
                     WorkFlowStatus = initiatedStatus,
-                    Comments = comments
+                    Comments = string.IsNullOrWhiteSpace(comments) ? null : comments.Trim()
                 };
 
-                // Validate model
+                // Validate model (comments remain optional)
+                ModelState.Clear();
                 if (!TryValidateModel(allotment))
                 {
+                    ModelState.Remove(nameof(Allotment.Comments));
                     var errors = ModelState.Values
                         .SelectMany(v => v.Errors)
                         .Select(e => e.ErrorMessage)
+                        .Where(e => !string.IsNullOrWhiteSpace(e))
                         .ToList();
-                    return Json(new { success = false, message = "Validation failed: " + string.Join(", ", errors) });
+                    if (errors.Count > 0)
+                    {
+                        return Json(new { success = false, message = "Validation failed: " + string.Join(", ", errors) });
+                    }
                 }
 
                 _context.Allotments.Add(allotment);
@@ -914,16 +924,40 @@ namespace PMS.Controllers
         // POST: Allotment/ProcessUnAllot
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ProcessUnAllot(string allotmentID, string reason)
+        public async Task<IActionResult> ProcessUnAllot(string allotmentID, string reason, string? returnCustomerId = null)
         {
             var denied = await EnsurePermissionAsync("Admin");
             if (denied != null) return denied;
+
+            IActionResult RedirectAfterUnAllot()
+            {
+                if (!string.IsNullOrWhiteSpace(returnCustomerId))
+                    return RedirectToAction("Details", "Customer", new { id = returnCustomerId.Trim() });
+                return RedirectToAction(nameof(UnAllot));
+            }
+
+            void SetError(string message)
+            {
+                if (!string.IsNullOrWhiteSpace(returnCustomerId))
+                    TempData["ErrorMessage"] = message;
+                else
+                    TempData["Error"] = message;
+            }
+
+            void SetSuccess(string message)
+            {
+                if (!string.IsNullOrWhiteSpace(returnCustomerId))
+                    TempData["SuccessMessage"] = message;
+                else
+                    TempData["Success"] = message;
+            }
+
             try
             {
                 if (string.IsNullOrEmpty(allotmentID))
                 {
-                    TempData["Error"] = "Allotment ID is required";
-                    return RedirectToAction(nameof(UnAllot));
+                    SetError("Allotment ID is required");
+                    return RedirectAfterUnAllot();
                 }
 
                 var allotment = await _context.Allotments
@@ -932,8 +966,8 @@ namespace PMS.Controllers
 
                 if (allotment == null)
                 {
-                    TempData["Error"] = "Allotment not found";
-                    return RedirectToAction(nameof(UnAllot));
+                    SetError("Allotment not found");
+                    return RedirectAfterUnAllot();
                 }
 
                 var propertyID = allotment.PropertyID;
@@ -962,13 +996,13 @@ namespace PMS.Controllers
 
                 await _context.SaveChangesAsync();
 
-                TempData["Success"] = "Allotment successfully cancelled. Property is now available.";
-                return RedirectToAction(nameof(UnAllot));
+                SetSuccess("Allotment successfully cancelled. Property is now available.");
+                return RedirectAfterUnAllot();
             }
             catch (Exception ex)
             {
-                TempData["Error"] = "Error cancelling allotment: " + ex.Message;
-                return RedirectToAction(nameof(UnAllot));
+                SetError("Error cancelling allotment: " + ex.Message);
+                return RedirectAfterUnAllot();
             }
         }
     }

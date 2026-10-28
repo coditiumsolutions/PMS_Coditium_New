@@ -1,0 +1,92 @@
+/* Shared Title | Field | Title | Field layout (Transfer Create / Details / Edit) */
+.transfer-wizard-form .transfer-wizard-row {
+    padding-bottom: 0.55rem;
+    margin-bottom: 0.55rem;
+    border-bottom: 1px solid rgb(104, 167, 226);
+}
+
+.transfer-wizard-form .transfer-wizard-row--section {
+    border-bottom-color: rgb(104, 167, 226);
+    padding-bottom: 0.35rem;
+}
+
+.transfer-wizard-form .transfer-wizard-title {
+    color: #000;
+    font-weight: 400;
+    font-size: 0.875rem;
+    padding-top: 0.4rem;
+}
+
+.transfer-wizard-form .transfer-wizard-title label {
+    color: #000;
+    font-weight: 400;
+    margin-bottom: 0;
+    cursor: default;
+}
+
+.transfer-wizard-form .transfer-wizard-section {
+    color: #000;
+    font-weight: 400;
+    font-size: 0.9rem;
+    padding: 0.2rem 0;
+}
+
+.transfer-wizard-form .transfer-wizard-field.form-control,
+.transfer-wizard-form .transfer-wizard-field.form-select,
+.transfer-wizard-form textarea.transfer-wizard-field,
+.transfer-wizard-form .transfer-wizard-value {
+    color: #0b5ed7;
+    border-radius: 0 !important;
+    border: 1px solid #495057;
+    background-color: #fff;
+}
+
+.transfer-wizard-form .transfer-wizard-value {
+    display: block;
+    width: 100%;
+    min-height: calc(1.5em + 0.75rem + 2px);
+    padding: 0.375rem 0.75rem;
+    font-size: 1rem;
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+/* Read mode: plain text (no input-like box) */
+.transfer-wizard-form.transfer-wizard-form--readonly .transfer-wizard-value {
+    color: #0b5ed7;
+    border: none !important;
+    background: transparent !important;
+    border-radius: 0 !important;
+    min-height: 0;
+    padding: 0.4rem 0 0;
+    font-size: 0.9375rem;
+    line-height: 1.4;
+}
+
+.transfer-wizard-form .transfer-wizard-value a {
+    color: #0b5ed7;
+    text-decoration: underline;
+}
+
+.transfer-wizard-form.transfer-wizard-form--readonly .transfer-wizard-value code {
+    color: #0b5ed7;
+    background: transparent;
+    padding: 0;
+}
+
+.transfer-wizard-form .transfer-wizard-field.form-control:focus,
+.transfer-wizard-form .transfer-wizard-field.form-select:focus,
+.transfer-wizard-form textarea.transfer-wizard-field:focus {
+    color: #0b5ed7;
+    border-color: #0b5ed7;
+    box-shadow: none;
+}
+
+.transfer-wizard-form .transfer-wizard-field::placeholder {
+    color: #6ea8fe;
+    opacity: 0.85;
+}
+
+.transfer-wizard-form .input-group .transfer-wizard-field {
+    border-radius: 0 !important;
+}
