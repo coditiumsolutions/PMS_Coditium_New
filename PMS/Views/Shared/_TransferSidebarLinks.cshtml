@@ -1,0 +1,44 @@
+@{
+    var currentController = ViewContext.RouteData.Values["Controller"]?.ToString() ?? "";
+    var currentAction = ViewContext.RouteData.Values["Action"]?.ToString() ?? "";
+
+    var isAllTransfers = string.Equals(currentController, "Transfer", StringComparison.OrdinalIgnoreCase);
+    var isTransferFee = string.Equals(currentController, "TransferFee", StringComparison.OrdinalIgnoreCase);
+    var isAllNdc = string.Equals(currentController, "NDC", StringComparison.OrdinalIgnoreCase)
+        && !string.Equals(currentAction, "Create", StringComparison.OrdinalIgnoreCase);
+    var isNdcFee = string.Equals(currentController, "NDC", StringComparison.OrdinalIgnoreCase)
+        && string.Equals(currentAction, "Create", StringComparison.OrdinalIgnoreCase);
+}
+
+<li class="nav-item sidebar-section-label sidebar-section-label--module">
+    <h6 class="sidebar-section-title">Transfer</h6>
+</li>
+
+<li class="nav-item sidebar-module-item">
+    <a class="nav-link @(isAllTransfers ? "active" : "")"
+       asp-controller="Transfer"
+       asp-action="Index">
+        <i class="fas fa-list me-2"></i>All Transfers
+    </a>
+</li>
+<li class="nav-item sidebar-module-item">
+    <a class="nav-link @(isTransferFee ? "active" : "")"
+       asp-controller="TransferFee"
+       asp-action="Index">
+        <i class="fas fa-tags me-2"></i>Transfer Fee
+    </a>
+</li>
+<li class="nav-item sidebar-module-item">
+    <a class="nav-link @(isAllNdc ? "active" : "")"
+       asp-controller="NDC"
+       asp-action="Index">
+        <i class="fas fa-certificate me-2"></i>All NDC
+    </a>
+</li>
+<li class="nav-item sidebar-module-item">
+    <a class="nav-link @(isNdcFee ? "active" : "")"
+       asp-controller="NDC"
+       asp-action="Create">
+        <i class="fas fa-file-invoice-dollar me-2"></i>NDC Fee
+    </a>
+</li>

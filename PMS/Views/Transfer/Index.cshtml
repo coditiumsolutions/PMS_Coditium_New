@@ -69,52 +69,34 @@
         </div>
     </form>
 
-    <div class="card pms-grid-card pms-listing-flat pms-saas-grid mb-2">
+    <div class="card pms-grid-card pms-listing-flat pms-saas-grid pms-transfer-grid mb-2">
         <div class="card-body py-2">
             <div class="table-responsive pms-saas-table-wrap">
                 <table class="table pms-saas-table" id="transfersTable">
                     <thead>
                         <tr>
-                            <th>Transfer ID</th>
                             <th>Customer ID</th>
-                            <th>Customers</th>
+                            <th>Project</th>
                             <th>Seller</th>
                             <th>Buyer</th>
-                            <th>Workflow</th>
+                            <th>Fee Due</th>
+                            <th>Fee Paid</th>
+                            <th class="pms-transfer-col-workflow">Workflow</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var t in Model)
                         {
                             <tr class="pms-transfer-row" data-href="@Url.Action("Details", new { id = t.TransferID })">
-                                <td data-label="Transfer ID">
-                                    <a asp-action="Details" asp-route-id="@t.TransferID" class="text-decoration-none">
-                                        <span class="badge bg-secondary">@t.TransferID</span>
-                                    </a>
-                                </td>
-                                <td data-label="Customer ID"><code>@t.CustomerID</code></td>
-                                <td data-label="Customers">
-                                    @if (t.Customer?.PaymentPlan?.Project != null)
-                                    {
-                                        <span class="pms-pill pms-pill--info">@t.Customer.PaymentPlan.Project.ProjectName</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted">—</span>
-                                    }
+                                <td data-label="Customer ID">@(t.CustomerID ?? "—")</td>
+                                <td data-label="Project">
+                                    @(t.Customer?.PaymentPlan?.Project?.ProjectName ?? "—")
                                 </td>
                                 <td data-label="Seller"><span class="pms-cell-truncate" title="@t.SellerName">@(t.SellerName ?? "—")</span></td>
                                 <td data-label="Buyer"><span class="pms-cell-truncate" title="@t.BuyerName">@(t.BuyerName ?? "—")</span></td>
-                                <td data-label="Workflow">
-                                    @if (t.WorkFlowStatus == "Approved")
-                                    { <span class="pms-pill pms-pill--success">@t.WorkFlowStatus</span> }
-                                    else if (t.WorkFlowStatus == "Created")
-                                    { <span class="pms-pill pms-pill--info">@t.WorkFlowStatus</span> }
-                                    else if (t.WorkFlowStatus == "Pending")
-                                    { <span class="pms-pill pms-pill--warning">@t.WorkFlowStatus</span> }
-                                    else
-                                    { <span class="pms-pill pms-pill--warning">@(t.WorkFlowStatus ?? "—")</span> }
-                                </td>
+                                <td data-label="Fee Due">@(t.TransferFeeDue?.ToString("N2") ?? "—")</td>
+                                <td data-label="Fee Paid">@(t.TransferFeePaid?.ToString("N2") ?? "—")</td>
+                                <td data-label="Workflow" class="pms-transfer-col-workflow">@(t.WorkFlowStatus ?? "—")</td>
                             </tr>
                         }
                     </tbody>
@@ -205,19 +187,66 @@
         color: #fff !important;
     }
 
+    .pms-transfer-listing .pms-transfer-grid,
+    .pms-transfer-listing .pms-transfer-grid .card-body,
+    .pms-transfer-listing .pms-transfer-grid .pms-saas-table-wrap,
+    .pms-transfer-listing .pms-transfer-grid .pms-saas-table {
+        background: #fff !important;
+    }
+
     .pms-transfer-listing .pms-saas-table thead th {
-        font-size: 0.68rem !important;
-        background-color: #6059A6 !important;
-        color: #fff !important;
-        border-color: #524c96 !important;
+        font-size: 0.8125rem !important;
+        font-weight: 400 !important;
+        text-transform: none !important;
+        letter-spacing: normal !important;
+        background-color: #fff !important;
+        color: #000 !important;
+        border: none !important;
+        border-bottom: 2px solid #1d4ed8 !important;
+        padding: 0.65rem 1rem !important;
+        cursor: default !important;
+    }
+
+    .pms-transfer-listing .pms-saas-table thead th:hover {
+        background-color: #fff !important;
+        color: #000 !important;
+    }
+
+    .pms-transfer-listing .pms-saas-table thead th.sorting,
+    .pms-transfer-listing .pms-saas-table thead th.sorting_asc,
+    .pms-transfer-listing .pms-saas-table thead th.sorting_desc,
+    .pms-transfer-listing .pms-saas-table thead th.sorting_asc_disabled,
+    .pms-transfer-listing .pms-saas-table thead th.sorting_desc_disabled {
+        background-image: none !important;
+        cursor: default !important;
     }
 
     .pms-transfer-listing .pms-saas-table,
-    .pms-transfer-listing .pms-saas-table tbody td,
-    .pms-transfer-listing .pms-saas-table tbody td a,
-    .pms-transfer-listing .pms-saas-table tbody td code,
-    .pms-transfer-listing .pms-saas-table tbody td .text-muted {
+    .pms-transfer-listing .pms-saas-table tbody td {
         color: #000 !important;
+        font-weight: 400 !important;
+        font-style: normal !important;
+    }
+
+    .pms-transfer-listing .pms-saas-table tbody tr,
+    .pms-transfer-listing .pms-saas-table tbody tr:nth-child(even),
+    .pms-transfer-listing .pms-saas-table tbody tr:hover {
+        background-color: #fff !important;
+        box-shadow: none !important;
+    }
+
+    .pms-transfer-listing .pms-saas-table tbody td {
+        border: none !important;
+        border-bottom: 1px solid #1d4ed8 !important;
+        background: #fff !important;
+    }
+
+    .pms-transfer-listing .pms-saas-table th.pms-transfer-col-workflow,
+    .pms-transfer-listing .pms-saas-table td.pms-transfer-col-workflow {
+        min-width: 9.5rem;
+        width: 12%;
+        white-space: nowrap;
+        max-width: none;
     }
 
     .pms-transfer-listing .pms-transfer-row {
@@ -233,7 +262,8 @@
     <script>
         $(document).ready(function() {
             PmsListingDataTable.init('#transfersTable', {
-                order: [[0, 'desc']],
+                ordering: false,
+                order: [],
                 lengthChange: false,
                 pageLength: 20,
                 dom: 'rtip'

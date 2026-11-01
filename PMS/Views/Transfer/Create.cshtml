@@ -21,12 +21,8 @@
     </div>
 </div>
 
-@if (TempData["ErrorMessage"] != null)
-{
-    <div class="alert alert-warning alert-dismissible fade show" role="alert">
-        @TempData["ErrorMessage"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
+@{
+    var transferProcessMsg = TempData["ErrorMessage"] as string;
 }
 
 <div class="card border-0 shadow-sm pms-mp-header mb-3">
@@ -77,8 +73,13 @@
                                 </select>
                             </div>
                         </div>
+                        <div class="row transfer-wizard-row" id="transferProcessMessageRow" style="@(string.IsNullOrWhiteSpace(transferProcessMsg) ? "display:none;" : null)">
+                            <div class="col-12">
+                                <div id="transferProcessMessage" class="transfer-process-msg">@transferProcessMsg</div>
+                            </div>
+                        </div>
                         <div class="row transfer-wizard-row transfer-wizard-row--section">
-                            <div class="col-12 transfer-wizard-section"><i class="fas fa-user me-1"></i>Seller (Current Owner) – filled from Search</div>
+                            <div class="col-12 transfer-wizard-section transfer-wizard-section--banded"><i class="fas fa-user me-1"></i>Seller (Current Owner) – filled from Search</div>
                         </div>
                         <div class="row g-2 align-items-start transfer-wizard-row">
                             <div class="col-md-2 transfer-wizard-title"><label asp-for="SellerName">Seller Name</label></div>
@@ -97,7 +98,7 @@
                             <div class="col-md-10"><input asp-for="SellerAddress" class="form-control transfer-wizard-field" readonly /></div>
                         </div>
                         <div class="row transfer-wizard-row transfer-wizard-row--section">
-                            <div class="col-12 transfer-wizard-section"><i class="fas fa-users me-1"></i>Joint Owners (Current Customer)</div>
+                            <div class="col-12 transfer-wizard-section transfer-wizard-section--banded"><i class="fas fa-users me-1"></i>Joint Owners (Current Customer)</div>
                         </div>
                         <div class="row transfer-wizard-row">
                             <div class="col-12">
@@ -299,7 +300,7 @@
                             </div>
                         </div>
                         <div class="row transfer-wizard-row transfer-wizard-row--section">
-                            <div class="col-12 transfer-wizard-section">Contact Information</div>
+                            <div class="col-12 transfer-wizard-section transfer-wizard-section--banded">Contact Information</div>
                         </div>
                         <div class="row g-2 align-items-start transfer-wizard-row">
                             <div class="col-md-2 transfer-wizard-title"><label asp-for="BuyerPhone">Phone <span class="text-danger">*</span></label></div>
@@ -387,9 +388,6 @@
                             <button type="button" id="nextBtn" class="btn pms-transfer-nav-btn">
                                 Next <i class="fas fa-arrow-right ms-1"></i>
                             </button>
-                            <button type="submit" id="btnCreateTransfer" class="btn pms-transfer-nav-btn" style="display: none;">
-                                <i class="fas fa-check me-1"></i>Create Transfer
-                            </button>
                             <a asp-action="Index" class="btn pms-transfer-nav-btn"><i class="fas fa-times me-1"></i>Cancel</a>
                         </div>
                     </div>
@@ -404,6 +402,16 @@
     .wizard-step h5 { font-weight: 700; padding-bottom: 0.5rem; border-bottom: 2px solid rgba(104, 167, 226, 0.3); }
     .progress { border-radius: 10px; overflow: hidden; }
     .progress-bar { display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; }
+
+    .transfer-process-msg {
+        color: #0b5ed7;
+        font-weight: 400;
+        font-size: 0.9375rem;
+        line-height: 1.45;
+        width: 100%;
+        display: block;
+        padding: 0.35rem 0;
+    }
 
     .pms-transfer-nav-btn {
         display: inline-flex !important;
@@ -444,6 +452,18 @@
 
             var ndcMessageEl = document.getElementById('ndcMessage');
             var customerIdValidation = document.getElementById('customerIdValidation');
+            var transferProcessMessageRow = document.getElementById('transferProcessMessageRow');
+            var transferProcessMessage = document.getElementById('transferProcessMessage');
+
+            function showTransferProcessMessage(msg) {
+                if (!transferProcessMessageRow || !transferProcessMessage) return;
+                transferProcessMessage.textContent = msg || '';
+                transferProcessMessageRow.style.display = msg ? '' : 'none';
+            }
+
+            function clearTransferProcessMessage() {
+                showTransferProcessMessage('');
+            }
             var step1 = document.getElementById('step1');
             var step2 = document.getElementById('step2');
             var step3 = document.getElementById('step3');
@@ -451,7 +471,6 @@
             var wizardStepIndicator = document.getElementById('wizardStepIndicator');
             var prevBtn = document.getElementById('prevBtn');
             var nextBtn = document.getElementById('nextBtn');
-            var btnCreateTransfer = document.getElementById('btnCreateTransfer');
 
             function updateWizardUI() {
                 step1.style.display = currentStep === 1 ? 'block' : 'none';
@@ -465,8 +484,12 @@
                 wizardStepIndicator.textContent = 'Step ' + currentStep + ' of ' + totalSteps;
 
                 prevBtn.style.display = currentStep === 1 ? 'none' : 'inline-block';
-                nextBtn.style.display = currentStep < totalSteps ? 'inline-block' : 'none';
-                btnCreateTransfer.style.display = currentStep === totalSteps ? 'inline-block' : 'none';
+                nextBtn.style.display = 'inline-block';
+                if (currentStep === totalSteps) {
+                    nextBtn.innerHTML = '<i class="fas fa-check me-1"></i>Save';
+                } else {
+                    nextBtn.innerHTML = 'Next <i class="fas fa-arrow-right ms-1"></i>';
+                }
             }
 
             function validateStep1() {
@@ -647,6 +670,7 @@
                 customerIdValidation.textContent = '';
                 ndcMessageEl.style.display = 'none';
                 ndcMessageEl.innerHTML = '';
+                clearTransferProcessMessage();
 
                 if (!customerId) {
                     customerIdValidation.textContent = 'Enter Customer ID.';
@@ -662,19 +686,23 @@
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (data.success) {
+                        clearTransferProcessMessage();
                         document.querySelector('input[name="SellerName"]').value = data.sellerName || '';
                         document.querySelector('input[name="SellerFatherName"]').value = data.sellerFatherName || '';
                         document.querySelector('input[name="SellerCNIC"]').value = data.sellerCNIC || '';
                         document.querySelector('input[name="SellerContact"]').value = data.sellerContact || '';
                         document.querySelector('input[name="SellerAddress"]').value = data.sellerAddress || '';
-                        // NDC is informational only — transfer can proceed without an active NDC
+
                         ndcMessageEl.style.display = 'block';
-                        if (data.hasActiveNDC) {
+                        if (data.ndcRequired) {
+                            ndcMessageEl.className = 'small mt-1 text-success';
+                            ndcMessageEl.innerHTML = '<i class="fas fa-check-circle me-1"></i>Active NDC found (required).';
+                        } else if (data.hasActiveNDC) {
                             ndcMessageEl.className = 'small mt-1 text-success';
                             ndcMessageEl.innerHTML = '<i class="fas fa-check-circle me-1"></i>Active NDC found (optional).';
                         } else {
                             ndcMessageEl.className = 'small mt-1 text-muted';
-                            ndcMessageEl.innerHTML = '<i class="fas fa-info-circle me-1"></i>No active NDC — you can still proceed.';
+                            ndcMessageEl.innerHTML = '<i class="fas fa-info-circle me-1"></i>NDC not required for transfer (Configuration NDC ≠ Yes).';
                         }
 
                         var tbody = document.querySelector('#currentJointOwnersTable tbody');
@@ -697,7 +725,30 @@
                             }
                         }
                     } else {
-                        customerIdValidation.textContent = data.message || 'Customer not found.';
+                        document.querySelector('input[name="SellerName"]').value = '';
+                        document.querySelector('input[name="SellerFatherName"]').value = '';
+                        document.querySelector('input[name="SellerCNIC"]').value = '';
+                        document.querySelector('input[name="SellerContact"]').value = '';
+                        document.querySelector('input[name="SellerAddress"]').value = '';
+                        var tbodyFail = document.querySelector('#currentJointOwnersTable tbody');
+                        if (tbodyFail) {
+                            tbodyFail.innerHTML = '<tr><td colspan="6" class="text-muted text-center">Search customer to load joint owners.</td></tr>';
+                        }
+                        if (data.transferInProcess) {
+                            customerIdValidation.textContent = '';
+                            ndcMessageEl.style.display = 'none';
+                            ndcMessageEl.innerHTML = '';
+                            showTransferProcessMessage(data.message || 'Transfer is already in process.');
+                        } else if (data.ndcRequired && data.hasActiveNDC === false) {
+                            clearTransferProcessMessage();
+                            customerIdValidation.textContent = '';
+                            ndcMessageEl.style.display = 'block';
+                            ndcMessageEl.className = 'small mt-1 text-danger';
+                            ndcMessageEl.innerHTML = '<i class="fas fa-exclamation-circle me-1"></i>' + (data.message || 'Active NDC is required.');
+                        } else {
+                            clearTransferProcessMessage();
+                            customerIdValidation.textContent = data.message || 'Customer not found.';
+                        }
                     }
                 })
                 .catch(function() { customerIdValidation.textContent = 'Request failed.'; });
@@ -711,6 +762,13 @@
                         alert('Please fill all required Payment & Fee fields.');
                         return;
                     }
+                } else if (currentStep === totalSteps) {
+                    if (!validateBuyerStep()) {
+                        alert('Please correct Buyer information before submitting.');
+                        return;
+                    }
+                    document.getElementById('transferForm').requestSubmit();
+                    return;
                 }
                 if (currentStep < totalSteps) {
                     currentStep++;

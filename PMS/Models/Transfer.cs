@@ -17,6 +17,12 @@ namespace PMS.Models
         [StringLength(100)]
         public string? WorkFlowStatus { get; set; }
 
+        /// <summary>
+        /// Append-only workflow audit log (one entry per line), e.g.
+        /// "Abbas changed its workflow status from Created to At the Desk of Accounts at 02 Nov 2026 01:15 AM".
+        /// </summary>
+        public string? TransferWorkflow { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.Now;
 
         // Seller (current owner at initiation)

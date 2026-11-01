@@ -50,14 +50,24 @@ public sealed class NavigationService : INavigationService
         },
         new NavigationModuleViewModel
         {
+            Key = NavigationModuleKeys.Transfer,
+            Label = "Transfer",
+            IconClass = "fas fa-exchange-alt",
+            Items = new[]
+            {
+                new NavigationMenuItemViewModel { Label = "All Transfers", Controller = "Transfer", Action = "Index", IconClass = "fas fa-list me-2" },
+                new NavigationMenuItemViewModel { Label = "Transfer Fee", Controller = "TransferFee", Action = "Index", IconClass = "fas fa-tags me-2" },
+                new NavigationMenuItemViewModel { Label = "All NDC", Controller = "NDC", Action = "Index", IconClass = "fas fa-certificate me-2" },
+                new NavigationMenuItemViewModel { Label = "NDC Fee", Controller = "NDC", Action = "Create", IconClass = "fas fa-file-invoice-dollar me-2", ActiveAction = "Create" }
+            }
+        },
+        new NavigationModuleViewModel
+        {
             Key = NavigationModuleKeys.Operations,
             Label = "Modules",
             IconClass = "fas fa-th-large",
             Items = new[]
             {
-                new NavigationMenuItemViewModel { Label = "Transfer", Controller = "Transfer", Action = "Index", IconClass = "fas fa-exchange-alt me-2" },
-                new NavigationMenuItemViewModel { Label = "Transfer Fee", Controller = "TransferFee", Action = "Index", IconClass = "fas fa-tags me-2" },
-                new NavigationMenuItemViewModel { Label = "NDC", Controller = "NDC", Action = "Index", IconClass = "fas fa-certificate me-2" },
                 new NavigationMenuItemViewModel { Label = "Refund", Controller = "Refund", Action = "Index", IconClass = "fas fa-undo-alt me-2" },
                 new NavigationMenuItemViewModel { Label = "Possession", Controller = "Possession", Action = "Index", IconClass = "fas fa-key me-2" },
                 new NavigationMenuItemViewModel { Label = "Allotment", Controller = "Allotment", Action = "Index", IconClass = "fas fa-hand-holding me-2" },
@@ -341,6 +351,13 @@ public sealed class NavigationService : INavigationService
             || string.Equals(controller, "Ticket", StringComparison.OrdinalIgnoreCase))
         {
             return NavigationModuleKeys.Sales;
+        }
+
+        if (string.Equals(controller, "Transfer", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(controller, "TransferFee", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(controller, "NDC", StringComparison.OrdinalIgnoreCase))
+        {
+            return NavigationModuleKeys.Transfer;
         }
 
         if (string.Equals(controller, "Reports", StringComparison.OrdinalIgnoreCase))

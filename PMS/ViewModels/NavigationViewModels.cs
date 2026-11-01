@@ -4,6 +4,7 @@ public static class NavigationModuleKeys
 {
     public const string Customer = "Customer";
     public const string Operations = "Operations";
+    public const string Transfer = "Transfer";
     public const string Property = "Property";
     public const string Payments = "Payments";
     public const string Sales = "Sales";

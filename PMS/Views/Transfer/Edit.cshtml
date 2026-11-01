@@ -2,7 +2,8 @@
 
 @{
     ViewData["Title"] = "Edit Transfer";
-    var isApproved = Model.WorkFlowStatus == "Approved";
+    var isApproved = string.Equals(Model.WorkFlowStatus?.Trim(), "Approved by Transfer Approval Officer", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(Model.WorkFlowStatus?.Trim(), "Approved", StringComparison.OrdinalIgnoreCase);
     var openAttachmentsTab = ViewBag.OpenAttachmentsTab == true;
     var canEditFields = ViewBag.FieldsEditable as bool? ?? string.Equals(Model.WorkFlowStatus?.Trim(), "Created", StringComparison.OrdinalIgnoreCase);
     string D(string? v) => string.IsNullOrWhiteSpace(v) ? "—" : v.Trim();
@@ -20,6 +21,13 @@
     </div>
 }
 
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @TempData["SuccessMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
 @if (TempData["ErrorMessage"] != null)
 {
     <div class="alert alert-warning alert-dismissible fade show" role="alert">
@@ -27,13 +35,20 @@
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 }
+@if (!ViewData.ModelState.IsValid)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <div asp-validation-summary="All" class="mb-0"></div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
 
 <div class="card">
-    <div class="card-header" style="background: linear-gradient(135deg, rgb(104, 167, 226) 0%, rgb(72, 123, 165) 100%);">
-        <h5 class="mb-0 text-white">@Model.TransferID — Customer: @Model.CustomerID</h5>
+    <div class="card-header border-0 bg-transparent px-3 pt-3 pb-0">
+        <h5 class="mb-0 text-dark">@Model.TransferID — Customer: @Model.CustomerID</h5>
     </div>
     <div class="card-body">
-        <form asp-action="Edit" method="post">
+        <form asp-action="Edit" method="post" novalidate>
             <input type="hidden" asp-for="TransferID" />
             <input type="hidden" asp-for="CustomerID" />
             <input type="hidden" asp-for="CreatedAt" />
@@ -44,18 +59,45 @@
 
             <div class="transfer-wizard-form mb-3">
                 <div class="row g-2 align-items-start transfer-wizard-row">
-                    <div class="col-md-2 transfer-wizard-title"><label asp-for="WorkFlowStatus">Workflow Status</label></div>
+                    <div class="col-md-2 transfer-wizard-title"><label>Current Status</label></div>
                     <div class="col-md-4">
-                        <select asp-for="WorkFlowStatus" class="form-select transfer-wizard-field">
-                            @foreach (var s in (string[])ViewBag.WorkflowStatuses)
-                            {
-                                <option value="@s" selected="@(Model.WorkFlowStatus == s)">@s</option>
-                            }
-                        </select>
-                        <small class="text-muted">Approved locks the record and updates the customer file with buyer details.</small>
+                        <div class="transfer-wizard-value transfer-wizard-value--status">@(ViewBag.CurrentWorkflowStatus as string ?? Model.WorkFlowStatus ?? "—")</div>
                     </div>
                     <div class="col-md-2 transfer-wizard-title"><label>Customer ID</label></div>
                     <div class="col-md-4"><div class="transfer-wizard-value">@Model.CustomerID</div></div>
+                </div>
+                <div class="row g-2 align-items-start transfer-wizard-row">
+                    <div class="col-md-2 transfer-wizard-title"><label asp-for="WorkFlowStatus">Next Status</label></div>
+                    <div class="col-md-4">
+                        @{
+                            var workflowOptions = ViewBag.WorkflowStatuses as string[] ?? Array.Empty<string>();
+                            var selectedWorkflow = Model.WorkFlowStatus;
+                        }
+                        <select asp-for="WorkFlowStatus" class="form-select transfer-wizard-field transfer-wizard-field--status" id="WorkFlowStatus">
+                            @foreach (var s in workflowOptions)
+                            {
+                                if (string.Equals(s, selectedWorkflow, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <option value="@s" selected>@s</option>
+                                }
+                                else
+                                {
+                                    <option value="@s">@s</option>
+                                }
+                            }
+                        </select>
+                        @if (!string.IsNullOrWhiteSpace(ViewBag.NextWorkflowStatus as string))
+                        {
+                            <small class="text-muted">Next step available: <strong>@ViewBag.NextWorkflowStatus</strong>. Approved by Transfer Approval Officer locks the record and updates the customer file.</small>
+                        }
+                        else
+                        {
+                            <small class="text-muted">No further status steps available.</small>
+                        }
+                        <span asp-validation-for="WorkFlowStatus" class="text-danger small d-block"></span>
+                    </div>
+                    <div class="col-md-2 transfer-wizard-title"></div>
+                    <div class="col-md-4"></div>
                 </div>
             </div>
 
@@ -65,6 +107,7 @@
                 <li class="nav-item"><button class="nav-link" type="button" data-bs-toggle="tab" data-bs-target="#payment" role="tab">Payment & Fee</button></li>
                 <li class="nav-item"><button class="nav-link" type="button" data-bs-toggle="tab" data-bs-target="#comments" role="tab">Comments</button></li>
                 <li class="nav-item"><button class="nav-link" type="button" data-bs-toggle="tab" data-bs-target="#newJointOwners" role="tab">New Joint Owners</button></li>
+                <li class="nav-item"><button class="nav-link" type="button" data-bs-toggle="tab" data-bs-target="#workflowHistory" role="tab">Workflow History</button></li>
                 <li class="nav-item"><button class="nav-link @(openAttachmentsTab ? "active" : "")" type="button" data-bs-toggle="tab" data-bs-target="#attachments" role="tab"><i class="fas fa-paperclip me-1"></i>Attachments</button></li>
             </ul>
             <div class="tab-content border border-top-0 p-3" id="editTabContent">
@@ -519,6 +562,11 @@
                         </table>
                     </div>
                 </div>
+                <div class="tab-pane fade" id="workflowHistory" role="tabpanel">
+                    <h6 class="mb-2">Workflow History</h6>
+                    <p class="text-muted small mb-2">Each workflow status change is recorded with the approval officer and date/time.</p>
+                    <partial name="_TransferWorkflowHistory" model="Model.TransferWorkflow" />
+                </div>
                 <div class="tab-pane fade @(openAttachmentsTab ? "show active" : "")" id="attachments" role="tabpanel">
                     @if (canEditFields)
                     {
@@ -791,11 +839,88 @@
 </div>
 
 <style>
-    .customer-tabs { border-bottom: 2px solid rgb(72, 123, 165); background: linear-gradient(135deg, #f8f9fa 0%, #e8eef5 100%); padding: 0.5rem 1rem 0; }
-    .customer-tabs .nav-link { border: none; color: var(--text-secondary); font-weight: 500; }
-    .customer-tabs .nav-link.active { color: rgb(72, 123, 165); border-bottom: 2px solid rgb(72, 123, 165); background: transparent; }
+    .customer-tabs { border-bottom: 1px solid #dee2e6; background: transparent; padding: 0.5rem 0 0; }
+    .customer-tabs .nav-link { border: none; color: var(--text-secondary); font-weight: 500; background: transparent; }
+    .customer-tabs .nav-link.active { color: #1d3557; border-bottom: 2px solid #1d3557; background: transparent; }
     .transfer-att-list .att-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #eee; }
     .transfer-att-list .att-item:last-child { border-bottom: none; }
+
+    .card,
+    .card-header,
+    .card-body,
+    #editTabContent,
+    #editTabContent .tab-pane,
+    #editTabContent .transfer-wizard-form,
+    .transfer-wizard-form {
+        background-color: #fff !important;
+    }
+
+    .transfer-wizard-form .transfer-wizard-row {
+        background-color: #fff !important;
+        border-bottom: 1px solid #1d4ed8 !important;
+        margin-bottom: 0.35rem !important;
+        padding-bottom: 0.35rem !important;
+    }
+
+    .transfer-wizard-form .transfer-wizard-field.form-control,
+    .transfer-wizard-form .transfer-wizard-field.form-select,
+    .transfer-wizard-form textarea.transfer-wizard-field,
+    .transfer-wizard-form .transfer-wizard-value {
+        color: #0b5ed7 !important;
+        background-color: #fff !important;
+        border: 1px solid #495057 !important;
+        border-radius: 0 !important;
+        min-height: 30px !important;
+        height: 30px !important;
+        padding: 0.2rem 0.5rem !important;
+        font-size: 0.8125rem !important;
+        line-height: 1.25 !important;
+    }
+
+    .transfer-wizard-form .transfer-wizard-value--status {
+        border: none !important;
+        background: transparent !important;
+        height: auto !important;
+        min-height: 0 !important;
+        padding: 0.25rem 0 0 !important;
+        font-weight: 600 !important;
+        color: #000 !important;
+    }
+
+    .transfer-wizard-form select.transfer-wizard-field--status {
+        appearance: auto !important;
+        -webkit-appearance: menulist !important;
+        -moz-appearance: menulist !important;
+        background-image: none !important;
+        padding-right: 1.75rem !important;
+        cursor: pointer;
+    }
+
+    .transfer-wizard-form textarea.transfer-wizard-field {
+        height: auto !important;
+        min-height: 54px !important;
+    }
+
+    .transfer-wizard-form .transfer-wizard-title {
+        padding-top: 0.25rem !important;
+        font-size: 0.8125rem !important;
+    }
+
+    .transfer-wizard-form .transfer-wizard-field.form-control:focus,
+    .transfer-wizard-form .transfer-wizard-field.form-select:focus,
+    .transfer-wizard-form textarea.transfer-wizard-field:focus {
+        color: #0b5ed7 !important;
+        border-color: #0b5ed7 !important;
+        box-shadow: none !important;
+    }
+
+    .transfer-wizard-form.transfer-wizard-form--readonly .transfer-wizard-value {
+        border: none !important;
+        background: transparent !important;
+        height: auto !important;
+        min-height: 0 !important;
+        padding: 0.25rem 0 0 !important;
+    }
 </style>
 @section Scripts {
 <script>
@@ -1196,11 +1321,15 @@
         buyerPassportEl.addEventListener('input', function() { this.value = this.value.replace(/[^a-zA-Z0-9]/g, ''); });
     }
 
-    // --- CNIC / Passport "at least one" validation on submit ---
-    document.querySelector('form[asp-action="Edit"]') || document.querySelector('form[action*="Edit"]') || document.querySelector('form');
+    // --- CNIC / Passport validation on submit (only while buyer fields are editable) ---
     var editForm = document.querySelector('form');
     if (editForm) {
         editForm.addEventListener('submit', function(e) {
+            // After Created, only workflow status can change — skip buyer field checks.
+            if (!fieldsEditable) {
+                return;
+            }
+
             var cnic     = (document.getElementById('BuyerCNIC')      ? document.getElementById('BuyerCNIC').value.trim()      : '');
             var passport = (document.getElementById('BuyerPassportNo') ? document.getElementById('BuyerPassportNo').value.trim() : '');
             var cnicValid    = /^\d{5}-\d{7}-\d$/.test(cnic);
@@ -1217,8 +1346,12 @@
             if (!isValid) {
                 e.preventDefault();
                 if (ruleEl) ruleEl.classList.remove('d-none');
-                document.querySelector('[data-bs-target="#buyer"]').click();
-                setTimeout(function() { document.getElementById('BuyerCNIC').scrollIntoView({ behavior:'smooth', block:'center' }); }, 300);
+                var buyerTab = document.querySelector('[data-bs-target="#buyer"]');
+                if (buyerTab) buyerTab.click();
+                setTimeout(function() {
+                    var buyerCnic = document.getElementById('BuyerCNIC');
+                    if (buyerCnic) buyerCnic.scrollIntoView({ behavior:'smooth', block:'center' });
+                }, 300);
                 return;
             }
 
@@ -1233,17 +1366,25 @@
             var phoneNorm = normalizeDigits(document.getElementById('BuyerPhone') ? document.getElementById('BuyerPhone').value : '');
             var mobileNorm = normalizeDigits(document.getElementById('BuyerMobile') ? document.getElementById('BuyerMobile').value : '');
             var mobile2Norm = normalizeDigits(document.getElementById('BuyerMobile2') ? document.getElementById('BuyerMobile2').value : '');
-            if ((phoneNorm && mobileNorm && phoneNorm === mobileNorm) ||
-                (mobile2Norm && phoneNorm && mobile2Norm === phoneNorm) ||
-                (mobile2Norm && mobileNorm && mobile2Norm === mobileNorm)) {
+            // Only Mobile 2 must differ from Phone / Mobile (Phone may match Mobile).
+            var mobile2Conflict = '';
+            if (mobile2Norm && phoneNorm && mobile2Norm === phoneNorm) {
+                mobile2Conflict = 'Mobile 2 must differ from Phone.';
+            } else if (mobile2Norm && mobileNorm && mobile2Norm === mobileNorm) {
+                mobile2Conflict = 'Mobile 2 must differ from Mobile.';
+            }
+            if (mobile2Conflict) {
                 e.preventDefault();
                 var buyerMobile2El = document.getElementById('BuyerMobile2');
                 if (buyerMobile2El) {
-                    buyerMobile2El.setCustomValidity('Mobile 2 must be different from Phone and Mobile.');
+                    buyerMobile2El.setCustomValidity(mobile2Conflict);
                     buyerMobile2El.reportValidity();
                 }
-                document.querySelector('[data-bs-target="#buyer"]').click();
-                setTimeout(function() { document.getElementById('BuyerMobile2').scrollIntoView({ behavior:'smooth', block:'center' }); }, 300);
+                var buyerTab2 = document.querySelector('[data-bs-target="#buyer"]');
+                if (buyerTab2) buyerTab2.click();
+                setTimeout(function() {
+                    if (buyerMobile2El) buyerMobile2El.scrollIntoView({ behavior:'smooth', block:'center' });
+                }, 300);
                 return;
             }
         });

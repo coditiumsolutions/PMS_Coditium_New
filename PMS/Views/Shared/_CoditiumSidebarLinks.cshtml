@@ -19,6 +19,16 @@
     </ul>
 </li>
 
+<li class="nav-item sidebar-subsection-block sidebar-main-link-block">
+    <a class="sidebar-subsection-toggle sidebar-main-link"
+       asp-controller="Transfer"
+       asp-action="Index">
+        <i class="fas fa-file-export me-2" aria-hidden="true"></i>
+        <span class="sidebar-subsection-title">Transfer</span>
+        <i class="bi bi-chevron-right sidebar-subsection-chevron sidebar-subsection-chevron--spacer" aria-hidden="true"></i>
+    </a>
+</li>
+
 <li class="nav-item sidebar-subsection-block"
     data-sidebar-section="coditium-modules"
     data-section-has-active="false">
@@ -29,10 +39,10 @@
     </button>
     <ul class="sidebar-subsection-items list-unstyled mb-0">
         <li class="nav-item sidebar-module-item sidebar-subsection-child">
-            <a class="nav-link" asp-controller="Transfer" asp-action="Index"><i class="fas fa-exchange-alt me-2"></i>Transfer</a>
+            <a class="nav-link" asp-controller="Home" asp-action="Modules"><i class="fas fa-th me-2"></i>Overview</a>
         </li>
         <li class="nav-item sidebar-module-item sidebar-subsection-child">
-            <a class="nav-link" asp-controller="NDC" asp-action="Index"><i class="fas fa-certificate me-2"></i>NDC</a>
+            <a class="nav-link" asp-controller="Refund" asp-action="Index"><i class="fas fa-undo-alt me-2"></i>Refund</a>
         </li>
         <li class="nav-item sidebar-module-item sidebar-subsection-child">
             <a class="nav-link" asp-controller="Possession" asp-action="Index"><i class="fas fa-key me-2"></i>Possession</a>
@@ -41,19 +51,13 @@
             <a class="nav-link" asp-controller="Allotment" asp-action="Index"><i class="fas fa-hand-holding me-2"></i>Allotment</a>
         </li>
         <li class="nav-item sidebar-module-item sidebar-subsection-child">
-            <a class="nav-link" asp-controller="AccountsManagement" asp-action="Index"><i class="fas fa-calculator me-2"></i>Finance</a>
+            <a class="nav-link" asp-controller="DuplicateFileTransfer" asp-action="Index"><i class="fas fa-copy me-2"></i>Duplicate File</a>
         </li>
         <li class="nav-item sidebar-module-item sidebar-subsection-child">
-            <a class="nav-link" asp-controller="SalesInquiry" asp-action="Index"><i class="fas fa-chart-line me-2"></i>Sales</a>
+            <a class="nav-link" asp-controller="Waiver" asp-action="Index"><i class="fas fa-hand-holding-usd me-2"></i>Waiver</a>
         </li>
         <li class="nav-item sidebar-module-item sidebar-subsection-child">
-            <a class="nav-link"
-               asp-controller="Reports"
-               asp-action="RequestedReport"
-               asp-route-id="total-active-members"
-               asp-route-title="Active Members">
-                <i class="fas fa-chart-bar me-2"></i>Reports
-            </a>
+            <a class="nav-link" asp-controller="Rental" asp-action="Index"><i class="fas fa-key me-2"></i>Rental</a>
         </li>
         <li class="nav-item sidebar-module-item sidebar-subsection-child">
             <a class="nav-link" asp-controller="ActivityLog" asp-action="ByCustomer">

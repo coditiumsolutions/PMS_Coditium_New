@@ -1,7 +1,8 @@
 @model PMS.Models.Transfer
 @{
     ViewData["Title"] = "Transfer Details";
-    var isApproved = Model.WorkFlowStatus == "Approved";
+    var isApproved = string.Equals(Model.WorkFlowStatus?.Trim(), "Approved by Transfer Approval Officer", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(Model.WorkFlowStatus?.Trim(), "Approved", StringComparison.OrdinalIgnoreCase);
     var isInitiated = string.Equals(Model.WorkFlowStatus?.Trim(), "Created", StringComparison.OrdinalIgnoreCase)
         || string.Equals(Model.WorkFlowStatus?.Trim(), "Initiated", StringComparison.OrdinalIgnoreCase);
     string D(string? v) => string.IsNullOrWhiteSpace(v) ? "—" : v.Trim();
@@ -48,6 +49,13 @@
     </div>
 </div>
 
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @TempData["SuccessMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
 @if (TempData["ErrorMessage"] != null)
 {
     <div class="alert alert-warning alert-dismissible fade show" role="alert">
@@ -63,9 +71,6 @@
                 <button class="nav-link active" id="summary-tab" data-bs-toggle="tab" data-bs-target="#summary" type="button" role="tab">Summary</button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="seller-tab" data-bs-toggle="tab" data-bs-target="#seller" type="button" role="tab">Seller</button>
-            </li>
-            <li class="nav-item" role="presentation">
                 <button class="nav-link" id="buyer-tab" data-bs-toggle="tab" data-bs-target="#buyer" type="button" role="tab">Buyer</button>
             </li>
             <li class="nav-item" role="presentation">
@@ -76,6 +81,9 @@
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="newjointowners-tab" data-bs-toggle="tab" data-bs-target="#newjointowners" type="button" role="tab">New Joint Owners</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="workflow-tab" data-bs-toggle="tab" data-bs-target="#workflowHistory" type="button" role="tab">Workflow History</button>
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="attachments-tab" data-bs-toggle="tab" data-bs-target="#attachments" type="button" role="tab"><i class="fas fa-paperclip me-1"></i>Attachments</button>
@@ -99,16 +107,6 @@
                         <div class="col-md-4"><div class="transfer-wizard-value"><span class="badge @(isApproved ? "bg-success" : "bg-warning")">@D(Model.WorkFlowStatus)</span></div></div>
                     </div>
                     <div class="row g-2 align-items-start transfer-wizard-row">
-                        <div class="col-md-2 transfer-wizard-title"><label>Created</label></div>
-                        <div class="col-md-4"><div class="transfer-wizard-value">@Model.CreatedAt.ToString("MMM dd, yyyy HH:mm")</div></div>
-                        <div class="col-md-2 transfer-wizard-title"></div>
-                        <div class="col-md-4"></div>
-                    </div>
-                </div>
-            </div>
-            <div class="tab-pane fade" id="seller" role="tabpanel">
-                <div class="transfer-wizard-form transfer-wizard-form--readonly">
-                    <div class="row g-2 align-items-start transfer-wizard-row">
                         <div class="col-md-2 transfer-wizard-title"><label>Seller Name</label></div>
                         <div class="col-md-4"><div class="transfer-wizard-value">@D(Model.SellerName)</div></div>
                         <div class="col-md-2 transfer-wizard-title"><label>Son/D/W/o</label></div>
@@ -123,6 +121,12 @@
                     <div class="row g-2 align-items-start transfer-wizard-row">
                         <div class="col-md-2 transfer-wizard-title"><label>Address</label></div>
                         <div class="col-md-10"><div class="transfer-wizard-value">@D(Model.SellerAddress)</div></div>
+                    </div>
+                    <div class="row g-2 align-items-start transfer-wizard-row">
+                        <div class="col-md-2 transfer-wizard-title"><label>Created</label></div>
+                        <div class="col-md-4"><div class="transfer-wizard-value">@Model.CreatedAt.ToString("MMM dd, yyyy HH:mm")</div></div>
+                        <div class="col-md-2 transfer-wizard-title"></div>
+                        <div class="col-md-4"></div>
                     </div>
                 </div>
             </div>
@@ -153,7 +157,7 @@
                         <div class="col-md-4"><div class="transfer-wizard-value">@D(Model.BuyerEmail)</div></div>
                     </div>
                     <div class="row transfer-wizard-row transfer-wizard-row--section">
-                        <div class="col-12 transfer-wizard-section">Contact Information</div>
+                        <div class="col-12 transfer-wizard-section transfer-wizard-section--banded">Contact Information</div>
                     </div>
                     <div class="row g-2 align-items-start transfer-wizard-row">
                         <div class="col-md-2 transfer-wizard-title"><label>Phone</label></div>
@@ -186,9 +190,9 @@
             <div class="tab-pane fade" id="payment" role="tabpanel">
                 <div class="transfer-wizard-form transfer-wizard-form--readonly">
                     <div class="row g-2 align-items-start transfer-wizard-row">
-                        <div class="col-md-2 transfer-wizard-title"><label>Transfer Fee Due</label></div>
+                        <div class="col-md-2 transfer-wizard-title"><label>Fee Due</label></div>
                         <div class="col-md-4"><div class="transfer-wizard-value">@(Model.TransferFeeDue?.ToString("N2") ?? "—")</div></div>
-                        <div class="col-md-2 transfer-wizard-title"><label>Transfer Fee Paid</label></div>
+                        <div class="col-md-2 transfer-wizard-title"><label>Fee Paid</label></div>
                         <div class="col-md-4"><div class="transfer-wizard-value">@(Model.TransferFeePaid?.ToString("N2") ?? "—")</div></div>
                     </div>
                     <div class="row g-2 align-items-start transfer-wizard-row">
@@ -231,7 +235,7 @@
             </div>
             <div class="tab-pane fade" id="newjointowners" role="tabpanel">
                 <div class="table-responsive">
-                    <table class="table table-sm table-hover" id="transferJointOwnersViewTable">
+                    <table class="table table-sm" id="transferJointOwnersViewTable">
                         <thead>
                             <tr>
                                 <th>Name</th>
@@ -248,6 +252,11 @@
                         </tbody>
                     </table>
                 </div>
+            </div>
+            <div class="tab-pane fade" id="workflowHistory" role="tabpanel">
+                <h6 class="mb-2">Workflow History</h6>
+                <p class="text-muted small mb-2">Each workflow status change is recorded with the approval officer and date/time.</p>
+                <partial name="_TransferWorkflowHistory" model="Model.TransferWorkflow" />
             </div>
             <div class="tab-pane fade" id="attachments" role="tabpanel">
                 <p class="text-muted small mb-3">Upload documents. Accepted: JPG, PNG, GIF, BMP, PDF. Max 8MB per file. Multiple files are allowed in all categories.</p>
@@ -426,6 +435,31 @@
     .customer-tabs .nav-link.active { color: rgb(72, 123, 165); border-bottom: 2px solid rgb(72, 123, 165); background: transparent; }
     .transfer-att-list .att-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #eee; }
     .transfer-att-list .att-item:last-child { border-bottom: none; }
+
+    #transferTabContent,
+    #transferTabContent .tab-pane,
+    #transferTabContent .transfer-wizard-form,
+    #transferTabContent .transfer-wizard-row,
+    #transferTabContent .transfer-wizard-title,
+    #transferTabContent .transfer-wizard-value,
+    #transferTabContent .table,
+    #transferTabContent .table > :not(caption) > * > *,
+    #transferTabContent .table tbody tr,
+    #transferTabContent .table tbody tr:nth-child(even),
+    #transferTabContent .table tbody tr:hover,
+    #transferTabContent .table tbody td,
+    #transferTabContent .table thead th {
+        background-color: #fff !important;
+        background-image: none !important;
+        box-shadow: none !important;
+    }
+
+    #transferTabContent .transfer-wizard-section--banded {
+        background-color: #1d3557 !important;
+        color: #fff !important;
+        font-weight: 500 !important;
+        padding: 0.45rem 0.75rem !important;
+    }
 
     .pms-transfer-details-btn {
         display: inline-flex !important;

@@ -19,7 +19,8 @@ namespace PMS.Controllers
         private const string WorkflowCreated = "Created";
         private const string WorkflowAtAccounts = "At the Desk of Accounts";
         private const string WorkflowAtTransferApproval = "At the Desk of Transfer Approval";
-        private const string WorkflowApproved = "Approved";
+        private const string WorkflowApproved = "Approved by Transfer Approval Officer";
+        private const string WorkflowApprovedLegacy = "Approved";
 
         public TransferController(PMSDbContext context, IModulePermissionService modulePermission)
         {
@@ -103,7 +104,7 @@ namespace PMS.Controllers
                 if (string.Equals(workflowFilter, "Pending", StringComparison.OrdinalIgnoreCase))
                 {
                     query = query.Where(t =>
-                        !string.Equals(t.WorkFlowStatus, "Approved", StringComparison.OrdinalIgnoreCase)
+                        !IsApprovedWorkflow(t.WorkFlowStatus)
                         && !string.Equals(t.WorkFlowStatus, "Declined", StringComparison.OrdinalIgnoreCase));
                 }
                 else
@@ -144,11 +145,20 @@ namespace PMS.Controllers
                 if (customer != null)
                 {
                     model.CustomerID = customer.CustomerID;
-                    model.SellerName = customer.FullName;
-                    model.SellerFatherName = customer.FatherName;
-                    model.SellerCNIC = customer.CNIC;
-                    model.SellerContact = customer.Phone;
-                    model.SellerAddress = customer.MailingAddress ?? customer.PermanentAddress;
+                    var inProcess = await FindInProcessTransferAsync(customer.CustomerID);
+                    if (inProcess != null)
+                    {
+                        TempData["ErrorMessage"] =
+                            $"Transfer is already in process ({inProcess.TransferID}, status: {inProcess.WorkFlowStatus}). A new transfer can be created only after the existing one is Approved.";
+                    }
+                    else
+                    {
+                        model.SellerName = customer.FullName;
+                        model.SellerFatherName = customer.FatherName;
+                        model.SellerCNIC = customer.CNIC;
+                        model.SellerContact = customer.Phone;
+                        model.SellerAddress = customer.MailingAddress ?? customer.PermanentAddress;
+                    }
                 }
             }
             return View(model);
@@ -210,6 +220,19 @@ namespace PMS.Controllers
             {
                 ModelState.AddModelError("CustomerID", "Customer ID not found.");
             }
+            else
+            {
+                var inProcess = await FindInProcessTransferAsync(model.CustomerID);
+                if (inProcess != null)
+                {
+                    ModelState.AddModelError("CustomerID",
+                        $"Transfer is already in process ({inProcess.TransferID}, status: {inProcess.WorkFlowStatus}). A new transfer can be created only after the existing one is Approved.");
+                }
+                else if (await IsNdcRequiredForTransferAsync() && !await CustomerHasActiveNdcAsync(model.CustomerID))
+                {
+                    ModelState.AddModelError("CustomerID", "No active NDC found. Transfer requires an NDC where current date is between Issue Date and Expiry Date.");
+                }
+            }
 
             ValidateBuyerInformation(model);
 
@@ -224,18 +247,19 @@ namespace PMS.Controllers
             if (string.IsNullOrWhiteSpace(model.PaymentChallanNo))
                 ModelState.AddModelError("PaymentChallanNo", "Challan No is required.");
 
-            if (string.Equals(model.WorkFlowStatus, WorkflowApproved, StringComparison.OrdinalIgnoreCase))
+            if (IsApprovedWorkflow(model.WorkFlowStatus))
             {
                 var due = model.TransferFeeDue ?? 0;
                 var paid = model.TransferFeePaid ?? 0;
                 if (Math.Abs(due - paid) > 0.001)
-                    ModelState.AddModelError("", "When Workflow Status is Approved, Transfer Fee Due must equal Transfer Fee Paid.");
+                    ModelState.AddModelError("", "When Workflow Status is Approved by Transfer Approval Officer, Transfer Fee Due must equal Transfer Fee Paid.");
             }
 
             if (ModelState.IsValid)
             {
                 model.BuyerContact = model.BuyerPhone;
                 model.BuyerAddress = model.BuyerMailingAddress;
+                AppendTransferWorkflowEntry(model, fromStatus: null, toStatus: model.WorkFlowStatus ?? WorkflowCreated);
                 _context.Transfers.Add(model);
                 await _context.SaveChangesAsync();
                 return RedirectToAction(nameof(Edit), new { id = model.TransferID, showAttachments = true });
@@ -395,17 +419,38 @@ namespace PMS.Controllers
             if (customer == null)
                 return Json(new { success = false, message = "Customer not found." });
 
+            var inProcess = await FindInProcessTransferAsync(resolvedId);
+            if (inProcess != null)
+            {
+                return Json(new
+                {
+                    success = false,
+                    transferInProcess = true,
+                    transferId = inProcess.TransferID,
+                    workFlowStatus = inProcess.WorkFlowStatus,
+                    message = $"Transfer is already in process ({inProcess.TransferID}, status: {inProcess.WorkFlowStatus}). A new transfer can be created only after the existing one is Approved."
+                });
+            }
+
+            var ndcRequired = await IsNdcRequiredForTransferAsync();
             var today = DateTime.Today;
-            var activeNDC = await _context.NDCs
+            var hasActiveNDC = await _context.NDCs
                 .AsNoTracking()
-                .Where(n => n.CustomerID != null && n.CustomerID.Trim() == resolvedId.Trim()
+                .AnyAsync(n => n.CustomerID != null && n.CustomerID.Trim() == resolvedId.Trim()
                     && n.NDCExpiryDate.HasValue
                     && n.IssuedDate.Date <= today
-                    && n.NDCExpiryDate.Value.Date >= today)
-                .FirstOrDefaultAsync();
+                    && n.NDCExpiryDate.Value.Date >= today);
 
-            var hasActiveNDC = activeNDC != null;
-            var ndcMessage = hasActiveNDC ? null : "No active NDC found. Transfer requires an NDC where current date is between Issue Date and Expiry Date.";
+            if (ndcRequired && !hasActiveNDC)
+            {
+                return Json(new
+                {
+                    success = false,
+                    ndcRequired = true,
+                    hasActiveNDC = false,
+                    message = "No active NDC found. Transfer requires an NDC where current date is between Issue Date and Expiry Date."
+                });
+            }
 
             return Json(new
             {
@@ -433,9 +478,53 @@ namespace PMS.Controllers
                         percentage = j.Percentage
                     })
                     .ToListAsync(),
+                ndcRequired,
                 hasActiveNDC,
-                ndcMessage
+                ndcMessage = ndcRequired
+                    ? (hasActiveNDC ? "Active NDC found." : null)
+                    : null
             });
+        }
+
+        /// <summary>
+        /// Configuration key "NDC": when value is Yes, an active NDC is required to start a transfer.
+        /// Any other value (or missing key) skips the NDC check.
+        /// </summary>
+        private async Task<bool> IsNdcRequiredForTransferAsync()
+        {
+            var cfg = await _context.Configurations.AsNoTracking()
+                .FirstOrDefaultAsync(c => c.ConfigKey == "NDC");
+            return string.Equals(cfg?.ConfigValue?.Trim(), "Yes", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private async Task<bool> CustomerHasActiveNdcAsync(string customerId)
+        {
+            if (string.IsNullOrWhiteSpace(customerId)) return false;
+            var today = DateTime.Today;
+            var trimmed = customerId.Trim();
+            return await _context.NDCs.AsNoTracking()
+                .AnyAsync(n => n.CustomerID != null && n.CustomerID.Trim() == trimmed
+                    && n.NDCExpiryDate.HasValue
+                    && n.IssuedDate.Date <= today
+                    && n.NDCExpiryDate.Value.Date >= today);
+        }
+
+        /// <summary>
+        /// Latest transfer for the customer that is not Approved (still in process).
+        /// </summary>
+        private async Task<Transfer?> FindInProcessTransferAsync(string customerId)
+        {
+            if (string.IsNullOrWhiteSpace(customerId)) return null;
+            var trimmed = customerId.Trim();
+
+            var transfers = await _context.Transfers
+                .AsNoTracking()
+                .Where(t => t.CustomerID != null && t.CustomerID.Trim() == trimmed)
+                .OrderByDescending(t => t.CreatedAt)
+                .ToListAsync();
+
+            return transfers.FirstOrDefault(t =>
+                !IsApprovedWorkflow(t.WorkFlowStatus));
         }
 
         [HttpGet]
@@ -598,7 +687,7 @@ namespace PMS.Controllers
 
             if (transfer == null) return NotFound();
 
-            if (transfer.WorkFlowStatus != WorkflowApproved)
+            if (!IsApprovedWorkflow(transfer.WorkFlowStatus))
             {
                 TempData["ErrorMessage"] = "Transfer letter is only available for approved transfers.";
                 return RedirectToAction(nameof(Details), new { id });
@@ -622,7 +711,7 @@ namespace PMS.Controllers
 
             if (transfer == null) return NotFound();
 
-            if (transfer.WorkFlowStatus == WorkflowApproved)
+            if (IsApprovedWorkflow(transfer.WorkFlowStatus))
             {
                 TempData["ErrorMessage"] = "This transfer is already approved. Use Transfer Letter instead.";
                 return RedirectToAction(nameof(Details), new { id });
@@ -644,13 +733,13 @@ namespace PMS.Controllers
 
             if (transfer == null) return NotFound();
 
-            if (transfer.WorkFlowStatus == WorkflowApproved)
+            if (IsApprovedWorkflow(transfer.WorkFlowStatus))
             {
-                TempData["ErrorMessage"] = "This transfer is approved and cannot be edited.";
+                TempData["ErrorMessage"] = "This transfer is Approved by Transfer Approval Officer and cannot be edited.";
                 return RedirectToAction(nameof(Details), new { id });
             }
 
-            ViewBag.WorkflowStatuses = new[] { WorkflowCreated, WorkflowAtAccounts, WorkflowAtTransferApproval, WorkflowApproved };
+            SetEditWorkflowViewBag(transfer.WorkFlowStatus);
             ViewBag.FieldsEditable = IsCreatedWorkflow(transfer.WorkFlowStatus);
             SetCitiesAndCountriesViewBag();
             SetNationalitiesViewBag();
@@ -676,9 +765,9 @@ namespace PMS.Controllers
 
             if (existing == null) return NotFound();
 
-            if (existing.WorkFlowStatus == WorkflowApproved)
+            if (IsApprovedWorkflow(existing.WorkFlowStatus))
             {
-                TempData["ErrorMessage"] = "This transfer is approved and cannot be edited.";
+                TempData["ErrorMessage"] = "This transfer is Approved by Transfer Approval Officer and cannot be edited.";
                 return RedirectToAction(nameof(Details), new { id });
             }
 
@@ -687,7 +776,7 @@ namespace PMS.Controllers
 
             void PrepareEditViewBags()
             {
-                ViewBag.WorkflowStatuses = new[] { WorkflowCreated, WorkflowAtAccounts, WorkflowAtTransferApproval, WorkflowApproved };
+                SetEditWorkflowViewBag(existing.WorkFlowStatus);
                 ViewBag.FieldsEditable = fieldsEditable;
                 SetCitiesAndCountriesViewBag();
                 SetNationalitiesViewBag();
@@ -695,29 +784,54 @@ namespace PMS.Controllers
                 SetBanksViewBag();
             }
 
+            // Only allow current status or the single next step.
+            var allowedStatuses = GetEditableWorkflowStatuses(existing.WorkFlowStatus);
+            if (string.IsNullOrWhiteSpace(model.WorkFlowStatus))
+            {
+                ModelState.AddModelError(nameof(model.WorkFlowStatus), "Next Status is required.");
+            }
+            else if (!allowedStatuses.Any(s => string.Equals(s, model.WorkFlowStatus, StringComparison.OrdinalIgnoreCase)))
+            {
+                ModelState.AddModelError(nameof(model.WorkFlowStatus),
+                    $"Invalid workflow status. From '{existing.WorkFlowStatus}' you can set: {string.Join(", ", allowedStatuses)}.");
+            }
+
             // After status leaves Created, only Workflow Status may change.
             if (!fieldsEditable)
             {
-                if (string.Equals(model.WorkFlowStatus, WorkflowApproved, StringComparison.OrdinalIgnoreCase))
+                // Ignore field-level binding errors; only workflow status is being updated.
+                foreach (var key in ModelState.Keys.Where(k => !string.Equals(k, nameof(model.WorkFlowStatus), StringComparison.OrdinalIgnoreCase)).ToList())
+                    ModelState.Remove(key);
+
+                if (IsApprovedWorkflow(model.WorkFlowStatus))
                 {
                     var due = existing.TransferFeeDue ?? 0;
                     var paid = existing.TransferFeePaid ?? 0;
                     if (Math.Abs(due - paid) > 0.001)
                     {
-                        ModelState.AddModelError("", "When Workflow Status is Approved, Transfer Fee Due must equal Transfer Fee Paid.");
-                        model.WorkFlowStatus = existing.WorkFlowStatus;
-                        // Keep displayed data from the stored transfer.
-                        CopyTransferForDisplay(existing, model);
-                        PrepareEditViewBags();
-                        return View(model);
+                        ModelState.AddModelError("", "When Workflow Status is Approved by Transfer Approval Officer, Transfer Fee Due must equal Transfer Fee Paid.");
                     }
                 }
 
-                existing.WorkFlowStatus = model.WorkFlowStatus;
-                if (string.Equals(existing.WorkFlowStatus, WorkflowApproved, StringComparison.OrdinalIgnoreCase))
+                if (!ModelState.IsValid)
+                {
+                    model.WorkFlowStatus = existing.WorkFlowStatus;
+                    CopyTransferForDisplay(existing, model);
+                    PrepareEditViewBags();
+                    return View(model);
+                }
+
+                var previousStatus = existing.WorkFlowStatus;
+                existing.WorkFlowStatus = model.WorkFlowStatus?.Trim();
+                if (!string.Equals(previousStatus, existing.WorkFlowStatus, StringComparison.OrdinalIgnoreCase))
+                    AppendTransferWorkflowEntry(existing, previousStatus, existing.WorkFlowStatus);
+                if (IsApprovedWorkflow(existing.WorkFlowStatus))
                     await ApplyApprovalSideEffectsAsync(existing);
 
                 await _context.SaveChangesAsync();
+                TempData["SuccessMessage"] = string.Equals(previousStatus, existing.WorkFlowStatus, StringComparison.OrdinalIgnoreCase)
+                    ? "Record saved."
+                    : $"Record saved. Status updated to '{existing.WorkFlowStatus}'.";
                 return RedirectToAction(nameof(Details), new { id });
             }
 
@@ -728,13 +842,13 @@ namespace PMS.Controllers
 
             ValidateBuyerInformation(model);
 
-            if (string.Equals(model.WorkFlowStatus, WorkflowApproved, StringComparison.OrdinalIgnoreCase))
+            if (IsApprovedWorkflow(model.WorkFlowStatus))
             {
                 var due = model.TransferFeeDue ?? 0;
                 var paid = model.TransferFeePaid ?? 0;
                 if (Math.Abs(due - paid) > 0.001)
                 {
-                    ModelState.AddModelError("", "When Workflow Status is Approved, Transfer Fee Due must equal Transfer Fee Paid.");
+                    ModelState.AddModelError("", "When Workflow Status is Approved by Transfer Approval Officer, Transfer Fee Due must equal Transfer Fee Paid.");
                     PrepareEditViewBags();
                     return View(model);
                 }
@@ -746,7 +860,10 @@ namespace PMS.Controllers
                 return View(model);
             }
 
-            existing.WorkFlowStatus = model.WorkFlowStatus;
+            var previousStatusCreated = existing.WorkFlowStatus;
+            existing.WorkFlowStatus = model.WorkFlowStatus?.Trim();
+            if (!string.Equals(previousStatusCreated, existing.WorkFlowStatus, StringComparison.OrdinalIgnoreCase))
+                AppendTransferWorkflowEntry(existing, previousStatusCreated, existing.WorkFlowStatus);
             existing.SellerName = model.SellerName;
             existing.SellerFatherName = model.SellerFatherName;
             existing.SellerCNIC = model.SellerCNIC;
@@ -785,19 +902,84 @@ namespace PMS.Controllers
             existing.AccountsComments = model.AccountsComments;
             existing.TransferComments = model.TransferComments;
 
-            if (string.Equals(model.WorkFlowStatus, WorkflowApproved, StringComparison.OrdinalIgnoreCase))
+            if (IsApprovedWorkflow(model.WorkFlowStatus))
                 await ApplyApprovalSideEffectsAsync(existing);
 
             await _context.SaveChangesAsync();
+            TempData["SuccessMessage"] = string.Equals(previousStatusCreated, existing.WorkFlowStatus, StringComparison.OrdinalIgnoreCase)
+                ? "Record saved."
+                : $"Record saved. Status updated to '{existing.WorkFlowStatus}'.";
             return RedirectToAction(nameof(Details), new { id });
         }
 
         private static bool IsCreatedWorkflow(string? status) =>
             string.Equals(status?.Trim(), WorkflowCreated, StringComparison.OrdinalIgnoreCase);
 
+        private static bool IsApprovedWorkflow(string? status) =>
+            string.Equals(status?.Trim(), WorkflowApproved, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(status?.Trim(), WorkflowApprovedLegacy, StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>Current status plus the single next allowed step for the Edit dropdown.</summary>
+        private static string[] GetEditableWorkflowStatuses(string? currentStatus)
+        {
+            var current = string.IsNullOrWhiteSpace(currentStatus) ? WorkflowCreated : currentStatus.Trim();
+            var next = GetNextWorkflowStatus(current);
+            if (string.IsNullOrEmpty(next) || string.Equals(next, current, StringComparison.OrdinalIgnoreCase))
+                return new[] { current };
+
+            return new[] { current, next };
+        }
+
+        private static string? GetNextWorkflowStatus(string current)
+        {
+            if (string.Equals(current, WorkflowCreated, StringComparison.OrdinalIgnoreCase))
+                return WorkflowAtAccounts;
+            if (string.Equals(current, WorkflowAtAccounts, StringComparison.OrdinalIgnoreCase))
+                return WorkflowAtTransferApproval;
+            if (string.Equals(current, WorkflowAtTransferApproval, StringComparison.OrdinalIgnoreCase))
+                return WorkflowApproved;
+            return null;
+        }
+
+        private void SetEditWorkflowViewBag(string? currentStatus)
+        {
+            ViewBag.CurrentWorkflowStatus = string.IsNullOrWhiteSpace(currentStatus) ? WorkflowCreated : currentStatus.Trim();
+            ViewBag.WorkflowStatuses = GetEditableWorkflowStatuses(currentStatus);
+            ViewBag.NextWorkflowStatus = GetNextWorkflowStatus((string)ViewBag.CurrentWorkflowStatus);
+        }
+
+        private string GetCurrentUserDisplayName()
+        {
+            var name = User.Identity?.Name?.Trim();
+            if (!string.IsNullOrWhiteSpace(name))
+                return name;
+            var claimName = User.FindFirst(ClaimTypes.Name)?.Value?.Trim();
+            if (!string.IsNullOrWhiteSpace(claimName))
+                return claimName;
+            return User.FindFirst(ClaimTypes.NameIdentifier)?.Value?.Trim() ?? "Unknown";
+        }
+
+        private void AppendTransferWorkflowEntry(Transfer transfer, string? fromStatus, string? toStatus)
+        {
+            var officer = GetCurrentUserDisplayName();
+            var when = DateTime.Now.ToString("dd MMM yyyy hh:mm tt");
+            var to = string.IsNullOrWhiteSpace(toStatus) ? "—" : toStatus.Trim();
+            string entry;
+            if (string.IsNullOrWhiteSpace(fromStatus))
+                entry = $"{officer} set workflow status to {to} at {when}";
+            else
+                entry = $"{officer} changed its workflow status from {fromStatus.Trim()} to {to} at {when}";
+
+            if (string.IsNullOrWhiteSpace(transfer.TransferWorkflow))
+                transfer.TransferWorkflow = entry;
+            else
+                transfer.TransferWorkflow = transfer.TransferWorkflow.TrimEnd() + Environment.NewLine + entry;
+        }
+
         private static void CopyTransferForDisplay(Transfer source, Transfer target)
         {
             target.CustomerID = source.CustomerID;
+            target.TransferWorkflow = source.TransferWorkflow;
             target.CreatedAt = source.CreatedAt;
             target.SellerName = source.SellerName;
             target.SellerFatherName = source.SellerFatherName;
@@ -839,8 +1021,15 @@ namespace PMS.Controllers
         private async Task ApplyApprovalSideEffectsAsync(Transfer existing)
         {
             var customer = existing.Customer;
+            if (customer == null && !string.IsNullOrWhiteSpace(existing.CustomerID))
+            {
+                customer = await _context.Customers.FirstOrDefaultAsync(c => c.CustomerID == existing.CustomerID);
+                existing.Customer = customer;
+            }
+
             if (customer != null)
             {
+                // Copy all buyer details onto the customer file when Transfer Approval Officer approves.
                 customer.FullName = existing.BuyerName ?? customer.FullName;
                 customer.FatherName = existing.BuyerFatherName ?? customer.FatherName;
                 customer.CNIC = existing.BuyerCNIC ?? customer.CNIC;

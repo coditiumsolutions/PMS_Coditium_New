@@ -1642,6 +1642,9 @@
                                 && string.Equals(currentAction, "Modules", StringComparison.OrdinalIgnoreCase);
                             var useModulesSidebar = isModulesHubPage
                                 || string.Equals(navigationShell.ActiveModuleKey, NavigationModuleKeys.Operations, StringComparison.OrdinalIgnoreCase);
+                            var useTransferSidebar = string.Equals(currentController, "Transfer", StringComparison.OrdinalIgnoreCase)
+                                || string.Equals(currentController, "TransferFee", StringComparison.OrdinalIgnoreCase)
+                                || string.Equals(currentController, "NDC", StringComparison.OrdinalIgnoreCase);
                         }
 @if (isAuditShell)
 {
@@ -1683,6 +1686,10 @@ else
                         if (useCoditiumSidebar)
                         {
                         <partial name="_CoditiumSidebarLinks" />
+                        }
+                        else if (useTransferSidebar)
+                        {
+                        <partial name="_TransferSidebarLinks" />
                         }
                         else if (useModulesSidebar)
                         {

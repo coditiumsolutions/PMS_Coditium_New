@@ -760,6 +760,7 @@ namespace PMS.Data
                 entity.Property(e => e.TransferID).HasMaxLength(50);
                 entity.Property(e => e.CustomerID).HasMaxLength(10);
                 entity.Property(e => e.WorkFlowStatus).HasMaxLength(100);
+                entity.Property(e => e.TransferWorkflow).HasColumnType("nvarchar(max)").IsRequired(false);
                 entity.Property(e => e.BuyerGender).HasMaxLength(20);
                 entity.Property(e => e.BuyerNationality).HasMaxLength(100);
                 entity.Property(e => e.BuyerEmail).HasMaxLength(150);

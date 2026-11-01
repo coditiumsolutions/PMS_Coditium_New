@@ -1,0 +1,79 @@
+@model string?
+@using System.Text.RegularExpressions
+@{
+    var entries = (Model ?? string.Empty)
+        .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .ToList();
+
+    var changeRx = new Regex(
+        @"^(?<officer>.+?) changed its workflow status from (?<from>.+?) to (?<to>.+?) at (?<when>.+)$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    var setRx = new Regex(
+        @"^(?<officer>.+?) set workflow status to (?<to>.+?) at (?<when>.+)$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+}
+
+<div class="table-responsive">
+    <table class="table table-sm mb-0" id="transferWorkflowHistoryTable">
+        <thead>
+            <tr>
+                <th style="width:3rem;">#</th>
+                <th>Approval Officer</th>
+                <th>From Status</th>
+                <th>To Status</th>
+                <th>Date / Time</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (entries.Count == 0)
+            {
+                <tr>
+                    <td colspan="5" class="text-muted text-center">No workflow history recorded yet.</td>
+                </tr>
+            }
+            else
+            {
+                for (var i = 0; i < entries.Count; i++)
+                {
+                    var line = entries[i];
+                    var officer = "—";
+                    var from = "—";
+                    var to = "—";
+                    var when = "—";
+
+                    var changeMatch = changeRx.Match(line);
+                    if (changeMatch.Success)
+                    {
+                        officer = changeMatch.Groups["officer"].Value;
+                        from = changeMatch.Groups["from"].Value;
+                        to = changeMatch.Groups["to"].Value;
+                        when = changeMatch.Groups["when"].Value;
+                    }
+                    else
+                    {
+                        var setMatch = setRx.Match(line);
+                        if (setMatch.Success)
+                        {
+                            officer = setMatch.Groups["officer"].Value;
+                            from = "—";
+                            to = setMatch.Groups["to"].Value;
+                            when = setMatch.Groups["when"].Value;
+                        }
+                        else
+                        {
+                            to = line;
+                        }
+                    }
+
+                    <tr>
+                        <td>@(i + 1)</td>
+                        <td>@officer</td>
+                        <td>@from</td>
+                        <td>@to</td>
+                        <td>@when</td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</div>

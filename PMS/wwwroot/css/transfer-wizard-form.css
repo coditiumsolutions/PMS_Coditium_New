@@ -31,6 +31,14 @@
     padding: 0.2rem 0;
 }
 
+.transfer-wizard-form .transfer-wizard-section--banded {
+    background-color: #1d3557;
+    color: #fff;
+    font-weight: 500;
+    padding: 0.45rem 0.75rem;
+    margin: 0 -0.15rem;
+}
+
 .transfer-wizard-form .transfer-wizard-field.form-control,
 .transfer-wizard-form .transfer-wizard-field.form-select,
 .transfer-wizard-form textarea.transfer-wizard-field,
