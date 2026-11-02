@@ -1,0 +1,109 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-pms-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, windows, pms]
+
+    env:
+      PUBLISH_PATH: ${{ github.workspace }}\publish
+      LIVE_PATH: C:\Live\PMS_Live
+      BACKUP_ROOT: C:\Deploy
+      APP_POOL_NAME: pms
+      SITE_URL: https://pms.coditium.com/
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Publish application
+        run: |
+          if (Test-Path $env:PUBLISH_PATH) { Remove-Item $env:PUBLISH_PATH -Recurse -Force }
+          dotnet publish PMS/PMS.csproj -c Release -o "$env:PUBLISH_PATH"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        shell: powershell
+
+      - name: Stop IIS App Pool
+        run: |
+          Import-Module WebAdministration
+          $poolName = $env:APP_POOL_NAME
+          if (-not (Get-Item "IIS:\AppPools\$poolName" -ErrorAction SilentlyContinue)) { Write-Error "App pool '$poolName' not found"; exit 1 }
+          if ((Get-WebAppPoolState -Name $poolName).Value -eq 'Started') {
+            Stop-WebAppPool -Name $poolName
+            $elapsed = 0
+            while ((Get-WebAppPoolState -Name $poolName).Value -ne 'Stopped' -and $elapsed -lt 60) { Start-Sleep -Seconds 2; $elapsed += 2 }
+            if ((Get-WebAppPoolState -Name $poolName).Value -ne 'Stopped') { Write-Error "App pool failed to stop within 60 seconds"; exit 1 }
+          }
+          Write-Host "App pool '$poolName' is stopped"
+        shell: powershell
+
+      - name: Backup current deployment
+        run: |
+          $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+          $backupPath = Join-Path $env:BACKUP_ROOT "PMS_backup_$timestamp"
+          if (-not (Test-Path $env:BACKUP_ROOT)) { New-Item -ItemType Directory -Path $env:BACKUP_ROOT -Force | Out-Null }
+          if (Test-Path $env:LIVE_PATH) {
+            Write-Host "Backing up $env:LIVE_PATH to $backupPath..."
+            Copy-Item -Path $env:LIVE_PATH -Destination $backupPath -Recurse -Force
+          }
+          Get-ChildItem -Path $env:BACKUP_ROOT -Directory -Filter "PMS_backup_*" | Sort-Object Name -Descending | Select-Object -Skip 5 | ForEach-Object {
+            Write-Host "Removing old backup: $($_.Name)"
+            Remove-Item -Path $_.FullName -Recurse -Force
+          }
+        shell: powershell
+
+      - name: Deploy to live folder
+        run: |
+          if (-not (Test-Path $env:LIVE_PATH)) { New-Item -ItemType Directory -Path $env:LIVE_PATH -Force | Out-Null }
+          # Server-only files are never overwritten: web.config and appsettings*.json hold
+          # production settings, and logs/App_Data hold runtime data. No /MIR, so nothing is deleted.
+          $robocopyArgs = @(
+            "$env:PUBLISH_PATH", "$env:LIVE_PATH", "/E",
+            "/XF", "web.config", "appsettings.json", "appsettings.*.json",
+            "/XD", "logs", "App_Data",
+            "/NP", "/NFL", "/NDL", "/R:3", "/W:5"
+          )
+          & robocopy @robocopyArgs
+          if ($LASTEXITCODE -ge 8) { Write-Error "Robocopy failed with exit code $LASTEXITCODE"; exit 1 }
+          Write-Host "Deployment completed (robocopy exit code: $LASTEXITCODE)"
+          exit 0
+        shell: powershell
+
+      - name: Start IIS App Pool
+        if: always()
+        run: |
+          Import-Module WebAdministration
+          $poolName = $env:APP_POOL_NAME
+          if ((Get-WebAppPoolState -Name $poolName).Value -ne 'Started') {
+            Start-WebAppPool -Name $poolName
+            $elapsed = 0
+            while ((Get-WebAppPoolState -Name $poolName).Value -ne 'Started' -and $elapsed -lt 30) { Start-Sleep -Seconds 2; $elapsed += 2 }
+            if ((Get-WebAppPoolState -Name $poolName).Value -ne 'Started') { Write-Error "App pool failed to start within 30 seconds"; exit 1 }
+          }
+          Write-Host "App pool '$poolName' is running"
+        shell: powershell
+
+      - name: Smoke test
+        run: |
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+          Start-Sleep -Seconds 5
+          try {
+            $response = Invoke-WebRequest -Uri $env:SITE_URL -UseBasicParsing -MaximumRedirection 5 -TimeoutSec 60
+            if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 400) { Write-Host "Smoke test passed ($($response.StatusCode))" }
+            else { Write-Error "Smoke test failed: status $($response.StatusCode)"; exit 1 }
+          } catch { Write-Error "Smoke test failed: $_"; exit 1 }
+        shell: powershell
